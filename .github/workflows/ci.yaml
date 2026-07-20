@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  lint-and-test:
+    name: Lint & Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Phase 1 dependencies
+        run: |
+          pip install --upgrade pip
+          pip install numpy pandas scikit-learn pyarrow dvc \
+                      great-expectations structlog python-dotenv \
+                      kaggle pyyaml pytest pytest-cov ruff black
+
+      - name: Lint with ruff
+        run: ruff check src/ tests/
+
+      - name: Format check with black
+        run: black --check src/ tests/
+
+      - name: Run unit tests (no real data required)
+        run: pytest tests/unit/ -v --tb=short
+
+      - name: Run data validation tests (skip if data absent)
+        run: pytest tests/data_validation/ -v --tb=short
+        # These tests auto-skip gracefully if datasets aren't downloaded
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: htmlcov/

@@ -62,28 +62,60 @@ DATASETS = {
 
 
 def _check_kaggle_credentials() -> None:
-    """Raise if Kaggle credentials are missing from env or ~/.kaggle/kaggle.json."""
+    """
+    Resolve Kaggle credentials from environment variables or ~/.kaggle/ files.
+
+    Supports two formats:
+      NEW (post-2024): KAGGLE_API_TOKEN=KGAT_...  → written to ~/.kaggle/access_token
+      OLD (classic):   KAGGLE_USERNAME + KAGGLE_KEY → written to ~/.kaggle/kaggle.json
+    """
+    import json
+
+    kaggle_dir = Path.home() / ".kaggle"
+    kaggle_json = kaggle_dir / "kaggle.json"
+    access_token_file = kaggle_dir / "access_token"
+
+    # ── NEW format: single KAGGLE_API_TOKEN ───────────────────────────────
+    api_token = os.getenv("KAGGLE_API_TOKEN")
+    if api_token and api_token.startswith("KGAT_"):
+        if not access_token_file.exists():
+            kaggle_dir.mkdir(parents=True, exist_ok=True)
+            access_token_file.write_text(api_token)
+            try:
+                access_token_file.chmod(0o600)
+            except Exception:
+                pass  # chmod may fail on Windows; not critical
+            log.info("kaggle_access_token_written", path=str(access_token_file))
+        return  # credentials resolved
+
+    # ── OLD format: KAGGLE_USERNAME + KAGGLE_KEY ──────────────────────────
     username = os.getenv("KAGGLE_USERNAME")
     key = os.getenv("KAGGLE_KEY")
 
-    kaggle_json = Path.home() / ".kaggle" / "kaggle.json"
+    if username and key:
+        if not kaggle_json.exists():
+            kaggle_dir.mkdir(parents=True, exist_ok=True)
+            kaggle_json.write_text(json.dumps({"username": username, "key": key}))
+            try:
+                kaggle_json.chmod(0o600)
+            except Exception:
+                pass
+            log.info("kaggle_json_written", path=str(kaggle_json))
+        return  # credentials resolved
 
-    if not ((username and key) or kaggle_json.exists()):
-        log.error(
-            "kaggle_credentials_missing",
-            hint="Set KAGGLE_USERNAME + KAGGLE_KEY in .env, or place kaggle.json in ~/.kaggle/",
-        )
-        sys.exit(1)
+    # ── Already on disk ───────────────────────────────────────────────────
+    if kaggle_json.exists() or access_token_file.exists():
+        return  # credentials already present
 
-    # If env vars are set, write/update ~/.kaggle/kaggle.json so the kaggle
-    # library picks them up automatically.
-    if username and key and not kaggle_json.exists():
-        import json
-
-        kaggle_json.parent.mkdir(parents=True, exist_ok=True)
-        kaggle_json.write_text(json.dumps({"username": username, "key": key}))
-        kaggle_json.chmod(0o600)
-        log.info("kaggle_json_written", path=str(kaggle_json))
+    # ── Nothing found ─────────────────────────────────────────────────────
+    log.error(
+        "kaggle_credentials_missing",
+        hint=(
+            "Set KAGGLE_API_TOKEN=KGAT_... in your .env file "
+            "(new format), or place kaggle.json in ~/.kaggle/"
+        ),
+    )
+    sys.exit(1)
 
 
 def _unzip_and_clean(zip_path: Path, out_dir: Path) -> None:

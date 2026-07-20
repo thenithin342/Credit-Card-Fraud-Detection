@@ -1,0 +1,9 @@
+# Normalize line endings to LF on commit (cross-platform)
+* text=auto eol=lf
+
+# Force binary for data files
+*.parquet binary
+*.csv binary
+*.zip binary
+*.pkl binary
+*.joblib binary

@@ -94,12 +94,27 @@ def split_data(df: pd.DataFrame, params: dict) -> tuple[pd.DataFrame, pd.DataFra
     )
 
     # Second: split remaining into train + val with stratification
+    # Guard: sklearn requires ≥2 samples per class to stratify.
+    # Fall back to non-stratified split on tiny or highly-skewed data.
     val_fraction = val_size / (1.0 - test_size)
+    target_col = features_cfg["target_col"]
+
+    can_stratify = False
+    if stratify:
+        min_class_count = train_val[target_col].value_counts().min()
+        can_stratify = min_class_count >= 2
+        if not can_stratify:
+            log.warning(
+                "stratify_disabled",
+                reason="too_few_minority_samples",
+                min_class_count=int(min_class_count),
+            )
+
     train, val = train_test_split(
         train_val,
         test_size=val_fraction,
         random_state=seed,
-        stratify=train_val[target_col] if stratify else None,
+        stratify=train_val[target_col] if can_stratify else None,
     )
 
     log.info(
