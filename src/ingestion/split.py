@@ -21,6 +21,7 @@ Design decisions:
   - Saves to Parquet (columnar, ~5× smaller than CSV, faster to read).
 ─────────────────────────────────────────────────────────────────────────────
 """
+
 from __future__ import annotations
 
 from pathlib import Path

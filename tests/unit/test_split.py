@@ -7,6 +7,7 @@ Uses the synthetic_ieee_df fixture from conftest.py —
 no real data download required. These always run in CI.
 ─────────────────────────────────────────────────────────────────────────────
 """
+
 from __future__ import annotations
 
 import sys

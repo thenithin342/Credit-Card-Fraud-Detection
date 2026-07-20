@@ -1,0 +1,41 @@
+Dataset:    ulb
+Success:    True
+Evaluated:  35
+Successful: 35
+Failed:     0
+
+  [PASS] expect_table_row_count_to_be_between
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_values_to_be_between
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_distinct_values_to_be_in_set
+  [PASS] expect_column_mean_to_be_between
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist
+  [PASS] expect_column_to_exist

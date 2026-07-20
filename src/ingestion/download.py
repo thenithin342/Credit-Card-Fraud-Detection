@@ -18,6 +18,7 @@ Requirements:
     - pip install kaggle
 ─────────────────────────────────────────────────────────────────────────────
 """
+
 from __future__ import annotations
 
 import argparse
@@ -178,11 +179,16 @@ def download_ieee() -> None:
     log.info("downloading_ieee_cis", dest=str(out_dir))
 
     # kaggle competitions download -c ieee-fraud-detection -p <out_dir>
-    _run_kaggle_cli([
-        "competitions", "download",
-        "-c", cfg["competition"],
-        "-p", str(out_dir),
-    ])
+    _run_kaggle_cli(
+        [
+            "competitions",
+            "download",
+            "-c",
+            cfg["competition"],
+            "-p",
+            str(out_dir),
+        ]
+    )
 
     # Unzip the downloaded archive(s)
     for zip_file in out_dir.glob("*.zip"):
@@ -212,12 +218,17 @@ def download_ulb() -> None:
     log.info("downloading_ulb", dest=str(out_dir))
 
     # kaggle datasets download -d mlg-ulb/creditcardfraud -p <out_dir> --unzip
-    _run_kaggle_cli([
-        "datasets", "download",
-        "-d", cfg["dataset"],
-        "-p", str(out_dir),
-        "--unzip",
-    ])
+    _run_kaggle_cli(
+        [
+            "datasets",
+            "download",
+            "-d",
+            cfg["dataset"],
+            "-p",
+            str(out_dir),
+            "--unzip",
+        ]
+    )
 
     if not _verify_files("ulb"):
         log.error("ulb_download_incomplete")

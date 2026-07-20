@@ -4,6 +4,7 @@ tests/conftest.py
 Shared pytest fixtures and configuration for the FraudGuard test suite.
 ─────────────────────────────────────────────────────────────────────────────
 """
+
 from __future__ import annotations
 
 import sys

@@ -1,14 +1,7 @@
-# DVC should NOT track these paths (they are already git-tracked)
+# DVC should NOT traverse these folders
 .git
 .github
 .venv
 venv
-*.py
-*.toml
-*.yaml
-*.yml
-*.md
-*.txt
-*.json
-Dockerfile*
-docker-compose*
+mlruns/
+mlartifacts/

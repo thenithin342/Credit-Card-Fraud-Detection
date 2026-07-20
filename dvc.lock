@@ -1,0 +1,120 @@
+schema: '2.0'
+stages:
+  ingest:
+    cmd: .venv\Scripts\python -m src.ingestion.download
+    params:
+      params.yaml:
+        data.raw_dir: data/raw
+    outs:
+    - path: data/raw/ieee-cis
+      hash: md5
+      md5: 3c5fe038794f5dd6da18000714480547.dir
+      size: 1478810103
+      nfiles: 6
+    - path: data/raw/ulb
+      hash: md5
+      md5: f2c7448614b9ec3d9e7e25dac874171f.dir
+      size: 150828752
+      nfiles: 1
+  validate:
+    cmd: .venv\Scripts\python -m src.validation.ge_suite
+    deps:
+    - path: data/raw/ieee-cis
+      hash: md5
+      md5: 3c5fe038794f5dd6da18000714480547.dir
+      size: 1478810103
+      nfiles: 6
+    - path: data/raw/ulb
+      hash: md5
+      md5: f2c7448614b9ec3d9e7e25dac874171f.dir
+      size: 150828752
+      nfiles: 1
+    - path: src/validation/ge_suite.py
+      hash: md5
+      md5: b96e1a8df7c495f27d3fcdbb52cb5090
+      size: 9480
+    params:
+      params.yaml:
+        data:
+          raw_dir: data/raw
+          processed_dir: data/processed
+          features_dir: data/features
+          ieee_train_transactions: data/raw/ieee-cis/train_transaction.csv
+          ieee_train_identity: data/raw/ieee-cis/train_identity.csv
+          ieee_test_transactions: data/raw/ieee-cis/test_transaction.csv
+          ieee_test_identity: data/raw/ieee-cis/test_identity.csv
+          ulb_csv: data/raw/ulb/creditcard.csv
+        validation:
+          max_null_rate: 0.5
+          min_positive_rate: 0.001
+          max_positive_rate: 0.05
+          expected_ieee_row_count_min: 500000
+          expected_ulb_row_count_min: 280000
+    outs:
+    - path: reports/validation
+      hash: md5
+      md5: 44ce1e0af02cf40e45977cb9e9dadd2a.dir
+      size: 2329
+      nfiles: 2
+  split:
+    cmd: .venv\Scripts\python -m src.ingestion.split
+    deps:
+    - path: data/raw/ieee-cis
+      hash: md5
+      md5: 3c5fe038794f5dd6da18000714480547.dir
+      size: 1478810103
+      nfiles: 6
+    - path: reports/validation
+      hash: md5
+      md5: 44ce1e0af02cf40e45977cb9e9dadd2a.dir
+      size: 2329
+      nfiles: 2
+    - path: src/ingestion/split.py
+      hash: md5
+      md5: 98a298622e56b1aa510db07541031af8
+      size: 5239
+    params:
+      params.yaml:
+        data:
+          raw_dir: data/raw
+          processed_dir: data/processed
+          features_dir: data/features
+          ieee_train_transactions: data/raw/ieee-cis/train_transaction.csv
+          ieee_train_identity: data/raw/ieee-cis/train_identity.csv
+          ieee_test_transactions: data/raw/ieee-cis/test_transaction.csv
+          ieee_test_identity: data/raw/ieee-cis/test_identity.csv
+          ulb_csv: data/raw/ulb/creditcard.csv
+        features:
+          velocity_windows_hours:
+          - 1
+          - 6
+          - 24
+          - 168
+          spend_agg_functions:
+          - mean
+          - std
+          - max
+          - count
+          cyclical_features:
+          - hour_of_day
+          - day_of_week
+          card_id_col: card1
+          target_col: isFraud
+        split:
+          test_size: 0.2
+          val_size: 0.1
+          random_seed: 42
+          stratify: true
+    outs:
+    - path: data/processed/test.parquet
+      hash: md5
+      md5: 98aa0622ea0a26c1639ac8fbef7e979f
+      size: 17371497
+    - path: data/processed/train.parquet
+      hash: md5
+      md5: 5d011f12a871aad338f3a7c8babf7dd1
+      size: 60370294
+    - path: data/processed/val.parquet
+      hash: md5
+      md5: 78918dd243f7a076895a7fe565b34dae
+      size: 9502395
