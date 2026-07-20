@@ -23,7 +23,6 @@ Design decisions:
 """
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pandas as pd
@@ -82,8 +81,6 @@ def split_data(df: pd.DataFrame, params: dict) -> tuple[pd.DataFrame, pd.DataFra
     val_size = split_cfg["val_size"]
     seed = split_cfg["random_seed"]
     stratify = split_cfg["stratify"]
-
-    y = df[target_col]
 
     # First: carve out test set
     train_val, test = train_test_split(

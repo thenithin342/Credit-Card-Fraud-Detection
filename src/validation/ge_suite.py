@@ -74,7 +74,6 @@ def build_ieee_suite(df: pd.DataFrame, val_cfg: dict) -> gx.core.ExpectationSuit
     ds = context.data_sources.add_pandas("ieee_source")
     da = ds.add_dataframe_asset("ieee_asset")
     batch_def = da.add_batch_definition_whole_dataframe("ieee_batch")
-    batch = batch_def.get_batch(batch_parameters={"dataframe": df})
 
     suite = context.suites.add(gx.core.ExpectationSuite(name="ieee_raw_suite"))
 
@@ -146,7 +145,6 @@ def build_ulb_suite(df: pd.DataFrame, val_cfg: dict) -> gx.core.ExpectationSuite
     ds = context.data_sources.add_pandas("ulb_source")
     da = ds.add_dataframe_asset("ulb_asset")
     batch_def = da.add_batch_definition_whole_dataframe("ulb_batch")
-    batch = batch_def.get_batch(batch_parameters={"dataframe": df})
 
     suite = context.suites.add(gx.core.ExpectationSuite(name="ulb_raw_suite"))
 
@@ -196,7 +194,6 @@ def run_validation(
     context,
 ) -> bool:
     """Run the suite, print results, save HTML report. Return True if passed."""
-    batch = batch_def.get_batch(batch_parameters={"dataframe": df})
     vdef = context.validation_definitions.add(
         gx.core.ValidationDefinition(
             name=f"{name}_validation",

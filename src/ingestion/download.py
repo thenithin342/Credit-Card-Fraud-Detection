@@ -21,6 +21,7 @@ Requirements:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import os
 import shutil
 import sys
@@ -81,10 +82,8 @@ def _check_kaggle_credentials() -> None:
         if not access_token_file.exists():
             kaggle_dir.mkdir(parents=True, exist_ok=True)
             access_token_file.write_text(api_token)
-            try:
+            with contextlib.suppress(Exception):
                 access_token_file.chmod(0o600)
-            except Exception:
-                pass  # chmod may fail on Windows; not critical
             log.info("kaggle_access_token_written", path=str(access_token_file))
         return  # credentials resolved
 
@@ -96,10 +95,8 @@ def _check_kaggle_credentials() -> None:
         if not kaggle_json.exists():
             kaggle_dir.mkdir(parents=True, exist_ok=True)
             kaggle_json.write_text(json.dumps({"username": username, "key": key}))
-            try:
+            with contextlib.suppress(Exception):
                 kaggle_json.chmod(0o600)
-            except Exception:
-                pass
             log.info("kaggle_json_written", path=str(kaggle_json))
         return  # credentials resolved
 
@@ -119,18 +116,20 @@ def _check_kaggle_credentials() -> None:
 
 
 def _unzip_and_clean(zip_path: Path, out_dir: Path) -> None:
-    """Unzip *zip_path* into *out_dir* and remove the zip file."""
+    """Unzip *zip_path* into *out_dir* (flat) and remove the zip file."""
     log.info("unzipping", zip=str(zip_path), dest=str(out_dir))
+    # Open and extract, then explicitly close before deleting (Windows file lock)
     with zipfile.ZipFile(zip_path, "r") as zf:
-        # Some competition zips nest data in sub-directories; extract flat.
-        for member in zf.namelist():
+        members = zf.namelist()
+        for member in members:
             filename = Path(member).name
             if not filename:
                 continue
-            source = zf.open(member)
-            target = out_dir / filename
-            with open(target, "wb") as f:
-                shutil.copyfileobj(source, f)
+            with zf.open(member) as source:
+                target = out_dir / filename
+                with open(target, "wb") as f:
+                    shutil.copyfileobj(source, f)
+    # ZipFile is now fully closed — safe to delete on Windows
     zip_path.unlink()
     log.info("zip_removed", zip=str(zip_path))
 
@@ -147,11 +146,27 @@ def _verify_files(dataset_key: str) -> bool:
     return True
 
 
+def _run_kaggle_cli(args: list[str]) -> None:
+    """
+    Run a kaggle CLI command via subprocess.
+    Works with kaggle v1.x and v2.x (avoids KaggleApiExtended which was
+    removed in kaggle v2.0).
+    """
+    import subprocess
+
+    cmd = [sys.executable, "-m", "kaggle"] + args
+    log.info("running_kaggle_cli", cmd=" ".join(cmd))
+    result = subprocess.run(cmd, capture_output=False, text=True)
+    if result.returncode != 0:
+        log.error("kaggle_cli_failed", returncode=result.returncode)
+        sys.exit(result.returncode)
+
+
 # ── Download Logic ─────────────────────────────────────────────────────────
 
 
 def download_ieee() -> None:
-    """Download the IEEE-CIS Fraud Detection competition dataset."""
+    """Download the IEEE-CIS Fraud Detection competition dataset via kaggle CLI."""
     cfg = DATASETS["ieee"]
     out_dir: Path = cfg["out_dir"]
 
@@ -162,27 +177,18 @@ def download_ieee() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     log.info("downloading_ieee_cis", dest=str(out_dir))
 
-    # kaggle library must be imported after credentials are resolved
-    import kaggle  # noqa: F401 — triggers auth check
+    # kaggle competitions download -c ieee-fraud-detection -p <out_dir>
+    _run_kaggle_cli([
+        "competitions", "download",
+        "-c", cfg["competition"],
+        "-p", str(out_dir),
+    ])
 
-    from kaggle.api.kaggle_api_extended import KaggleApiExtended
-
-    api = KaggleApiExtended()
-    api.authenticate()
-
-    # Download all competition files as a zip into out_dir
-    api.competition_download_files(
-        competition=cfg["competition"],
-        path=str(out_dir),
-        quiet=False,
-    )
-
-    # The download produces <competition>.zip — unzip it
-    zip_file = out_dir / f"{cfg['competition']}.zip"
-    if zip_file.exists():
+    # Unzip the downloaded archive(s)
+    for zip_file in out_dir.glob("*.zip"):
         _unzip_and_clean(zip_file, out_dir)
 
-    # Some files may be individually zipped (.csv.zip); expand them too
+    # Some files arrive as individual .csv.zip — expand those too
     for extra_zip in out_dir.glob("*.zip"):
         _unzip_and_clean(extra_zip, out_dir)
 
@@ -194,7 +200,7 @@ def download_ieee() -> None:
 
 
 def download_ulb() -> None:
-    """Download the ULB Credit Card Fraud dataset."""
+    """Download the ULB Credit Card Fraud dataset via kaggle CLI."""
     cfg = DATASETS["ulb"]
     out_dir: Path = cfg["out_dir"]
 
@@ -205,17 +211,13 @@ def download_ulb() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     log.info("downloading_ulb", dest=str(out_dir))
 
-    from kaggle.api.kaggle_api_extended import KaggleApiExtended
-
-    api = KaggleApiExtended()
-    api.authenticate()
-
-    api.dataset_download_files(
-        dataset=cfg["dataset"],
-        path=str(out_dir),
-        unzip=True,
-        quiet=False,
-    )
+    # kaggle datasets download -d mlg-ulb/creditcardfraud -p <out_dir> --unzip
+    _run_kaggle_cli([
+        "datasets", "download",
+        "-d", cfg["dataset"],
+        "-p", str(out_dir),
+        "--unzip",
+    ])
 
     if not _verify_files("ulb"):
         log.error("ulb_download_incomplete")

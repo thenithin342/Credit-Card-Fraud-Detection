@@ -1,0 +1,57 @@
+# FraudGuard — Phase 1 Requirements
+# Install with: pip install -r requirements.txt
+#
+# For full dev dependencies (pytest, ruff, black, etc.):
+#   pip install -r requirements-dev.txt
+
+# ── Data & ML Core ──────────────────────────────────────────────
+numpy>=1.26,<3.0
+pandas>=2.1,<4.0
+scikit-learn>=1.4,<2.0
+pyarrow>=15.0,<27.0
+scipy>=1.12,<2.0
+joblib>=1.4,<2.0
+
+# ── Explainability ──────────────────────────────────────────────
+shap>=0.45,<1.0
+
+# ── Hyperparameter Tuning ───────────────────────────────────────
+optuna>=3.6,<4.0
+
+# ── Experiment Tracking & Registry ─────────────────────────────
+mlflow>=2.13,<3.0
+
+# ── Data Versioning ─────────────────────────────────────────────
+dvc>=3.50,<4.0
+
+# ── Data Validation ─────────────────────────────────────────────
+great-expectations>=0.18,<1.0
+
+# ── Feature Store ───────────────────────────────────────────────
+feast>=0.40,<1.0
+
+# ── Serving ─────────────────────────────────────────────────────
+fastapi>=0.111,<1.0
+uvicorn[standard]>=0.29,<1.0
+pydantic>=2.7,<3.0
+
+# ── Streaming ───────────────────────────────────────────────────
+confluent-kafka>=2.4,<3.0
+
+# ── Monitoring & Drift ──────────────────────────────────────────
+evidently>=0.4,<1.0
+prometheus-fastapi-instrumentator>=7.0,<8.0
+
+# ── Structured Logging ──────────────────────────────────────────
+structlog>=24.1,<25.0
+
+# ── Utilities ───────────────────────────────────────────────────
+python-dotenv>=1.0,<2.0
+kaggle>=1.6,<3.0
+pyyaml>=6.0,<7.0
+tqdm>=4.66,<5.0
+matplotlib>=3.8,<4.0
+seaborn>=0.13,<1.0
+redis>=5.0,<6.0
+psycopg2-binary>=2.9,<3.0
+sqlalchemy>=2.0,<3.0
