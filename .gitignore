@@ -20,8 +20,6 @@ env/
 /data/processed/
 /data/features/
 # DVC lock and cache are kept, but not data files
-*.dvc
-!.dvcignore
 
 # ── MLflow ──────────────────────────────────────────────────────
 mlruns/
