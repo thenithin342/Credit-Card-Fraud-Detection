@@ -1,0 +1,81 @@
+stages:
+
+  # ────────────────────────────────────────────────────────────────
+  # Stage 1: ingest
+  # Downloads IEEE-CIS and ULB datasets from Kaggle into data/raw/
+  # ────────────────────────────────────────────────────────────────
+  ingest:
+    cmd: python -m src.ingestion.download
+    params:
+      - params.yaml:
+          - data.raw_dir
+    outs:
+      - data/raw/ieee-cis:
+          cache: true
+          persist: true   # don't delete on re-run if already exists
+      - data/raw/ulb:
+          cache: true
+          persist: true
+
+  # ────────────────────────────────────────────────────────────────
+  # Stage 2: validate
+  # Runs Great Expectations suites on raw data; fails fast on schema
+  # violations or unexpected distributions.
+  # ────────────────────────────────────────────────────────────────
+  validate:
+    cmd: python -m src.validation.ge_suite
+    deps:
+      - data/raw/ieee-cis
+      - data/raw/ulb
+      - src/validation/ge_suite.py
+    params:
+      - params.yaml:
+          - validation
+          - data
+    outs:
+      - reports/validation:
+          cache: false    # reports are ephemeral; don't cache in DVC
+
+  # ────────────────────────────────────────────────────────────────
+  # Stage 3: split
+  # Stratified train/val/test split; saves parquet files to
+  # data/processed/  (DVC-tracked)
+  # ────────────────────────────────────────────────────────────────
+  split:
+    cmd: python -m src.ingestion.split
+    deps:
+      - data/raw/ieee-cis
+      - src/ingestion/split.py
+      - reports/validation
+    params:
+      - params.yaml:
+          - split
+          - data
+          - features
+    outs:
+      - data/processed/train.parquet
+      - data/processed/val.parquet
+      - data/processed/test.parquet
+
+  # ────────────────────────────────────────────────────────────────
+  # Stage 4: feature_engineer   (added in Phase 2)
+  # ────────────────────────────────────────────────────────────────
+  # feature_engineer:
+  #   cmd: python -m src.features.feature_engineering
+  #   deps:
+  #     - data/processed/train.parquet
+  #     - data/processed/val.parquet
+  #     - data/processed/test.parquet
+  #     - src/features/feature_engineering.py
+  #   params:
+  #     - params.yaml:
+  #         - features
+  #   outs:
+  #     - data/features/train_features.parquet
+  #     - data/features/val_features.parquet
+  #     - data/features/test_features.parquet
+
+  # ────────────────────────────────────────────────────────────────
+  # Stage 5: train               (added in Phase 3)
+  # Stage 6: evaluate            (added in Phase 3)
+  # ────────────────────────────────────────────────────────────────

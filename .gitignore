@@ -1,0 +1,76 @@
+# ── Python ──────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Virtual Environments ────────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── DVC ─────────────────────────────────────────────────────────
+/data/raw/
+/data/processed/
+/data/features/
+# DVC lock and cache are kept, but not data files
+*.dvc
+!.dvcignore
+
+# ── MLflow ──────────────────────────────────────────────────────
+mlruns/
+mlartifacts/
+
+# ── Jupyter ─────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── Environment & Secrets ───────────────────────────────────────
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+
+# ── IDE ─────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── OS ──────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Testing & Coverage ──────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# ── Logs & Reports ──────────────────────────────────────────────
+logs/
+*.log
+reports/evidently/
+
+# ── Airflow ─────────────────────────────────────────────────────
+airflow/logs/
+airflow/plugins/
+airflow.db
+airflow.cfg
+
+# ── Docker ──────────────────────────────────────────────────────
+.docker/
+
+# ── Temp ────────────────────────────────────────────────────────
+tmp/
+temp/
+*.tmp

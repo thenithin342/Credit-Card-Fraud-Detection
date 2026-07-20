@@ -1,0 +1,85 @@
+# ─────────────────────────────────────────────────────────────────
+# FraudGuard — Global Parameters
+# All pipeline stages read from this file via ${params:...} in dvc.yaml
+# ─────────────────────────────────────────────────────────────────
+
+# ── Dataset Paths (relative to project root) ─────────────────────
+data:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  features_dir: data/features
+
+  # IEEE-CIS primary dataset files (after Kaggle download)
+  ieee_train_transactions: data/raw/ieee-cis/train_transaction.csv
+  ieee_train_identity:     data/raw/ieee-cis/train_identity.csv
+  ieee_test_transactions:  data/raw/ieee-cis/test_transaction.csv
+  ieee_test_identity:      data/raw/ieee-cis/test_identity.csv
+
+  # ULB (secondary — used for drift simulation)
+  ulb_csv: data/raw/ulb/creditcard.csv
+
+# ── Split Configuration ───────────────────────────────────────────
+split:
+  test_size: 0.20         # 20% held out for final evaluation
+  val_size:  0.10         # 10% of train for validation / early stopping
+  random_seed: 42
+  stratify: true          # stratify on isFraud label
+
+# ── Validation Thresholds (Great Expectations) ────────────────────
+validation:
+  max_null_rate: 0.50                  # columns with >50% nulls are flagged
+  min_positive_rate: 0.001             # at least 0.1% fraud in any split
+  max_positive_rate: 0.05             # sanity upper bound
+  expected_ieee_row_count_min: 500000  # guard against partial downloads
+  expected_ulb_row_count_min:  280000
+
+# ── Feature Engineering ───────────────────────────────────────────
+features:
+  velocity_windows_hours: [1, 6, 24, 168]   # 1h, 6h, 24h, 7d
+  spend_agg_functions: ["mean", "std", "max", "count"]
+  cyclical_features: ["hour_of_day", "day_of_week"]
+  card_id_col: "card1"                       # surrogate card identifier in IEEE-CIS
+  target_col: "isFraud"
+
+# ── Training ──────────────────────────────────────────────────────
+training:
+  models: ["xgboost", "lightgbm", "logistic_regression"]
+  primary_model: "xgboost"
+  imbalance_strategy: "scale_pos_weight"    # or smote | class_weight
+  early_stopping_rounds: 50
+  n_jobs: -1
+
+# ── Optuna Tuning ─────────────────────────────────────────────────
+tuning:
+  n_trials: 50
+  timeout_seconds: 3600                     # 1 hour max
+  metric: "average_precision"               # AUC-PR
+  direction: "maximize"
+  pruner: "MedianPruner"
+
+# ── Evaluation & Promotion Gate ───────────────────────────────────
+evaluation:
+  primary_metric: "average_precision"       # AUC-PR
+  promotion_threshold: 0.70                 # min AUC-PR to promote to Staging
+  operating_fpr: 0.01                       # precision/recall reported at this FPR
+  fn_cost: 10.0                             # relative cost of a false negative
+  fp_cost: 1.0                              # relative cost of a false positive
+
+# ── Monitoring & Drift ────────────────────────────────────────────
+monitoring:
+  drift_score_threshold: 0.20               # Evidently drift score > this triggers retrain
+  reference_window_days: 30                 # days of history used as drift reference
+  report_output_dir: reports/evidently
+
+# ── Serving ───────────────────────────────────────────────────────
+serving:
+  host: "0.0.0.0"
+  port: 8000
+  mlflow_tracking_uri: "http://localhost:5000"
+  mlflow_model_name: "fraudguard-xgboost"
+  mlflow_model_stage: "Production"
+  redis_host: "localhost"
+  redis_port: 6379
+  feast_repo_path: "src/features/feast_repo"
+  shap_top_k: 10                            # number of top SHAP features to return
+  latency_sla_ms: 100
