@@ -1,0 +1,140 @@
+version: "3.9"
+
+# This file is built incrementally across phases (see docs/ROADMAP.md).
+# Phase 0/1: redpanda, redis, postgres, mlflow come up healthy.
+# Phase 3 adds: api. Phase 5 adds: prometheus, grafana.
+# Phase 6 (Airflow) is via Airflow's own official docker-compose, bridged to this network.
+
+services:
+
+  # ── Phase 0: streaming backbone ────────────────────────────────────────
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.1.13
+    container_name: fraud-redpanda
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --overprovisioned
+      - --node-id=0
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:9092
+      - --pandaproxy-addr=0.0.0.0:8082
+      - --advertise-pandaproxy-addr=redpanda:8082
+      - --schema-registry-addr=0.0.0.0:8081
+      - --advertise-schema-registry-addr=redpanda:8081
+    ports:
+      - "9092:9092"
+      - "8082:8082"
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    networks:
+      - fraud-net
+
+  # ── Phase 0/1: online feature store ────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: fraud-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fraud-net
+
+  # ── Phase 0/1: offline feature store + prediction log ──────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: fraud-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fraud_mlops}
+      POSTGRES_USER: ${POSTGRES_USER:-fraud_mlops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_locally}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fraud_mlops}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fraud-net
+
+  # ── Phase 2: experiment tracking & model registry ──────────────────────
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.13.2
+    container_name: fraud-mlflow
+    command: >
+      mlflow server
+      --backend-store-uri postgresql+psycopg2://${POSTGRES_USER:-fraud_mlops}:${POSTGRES_PASSWORD:-change_me_locally}@postgres:5432/${POSTGRES_DB:-fraud_mlops}
+      --default-artifact-root /mlflow/artifacts
+      --host 0.0.0.0
+      --port 5000
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_data:/mlflow
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - fraud-net
+
+  # ── Phase 3: scoring API ────────────────────────────────────────────────
+  # Uncomment once src/serving/main.py exists
+  # api:
+  #   build:
+  #     context: .
+  #     dockerfile: infra/docker/api.Dockerfile
+  #   container_name: fraud-api
+  #   env_file: .env
+  #   ports:
+  #     - "8000:8000"
+  #   depends_on:
+  #     - redis
+  #     - postgres
+  #     - mlflow
+  #   networks:
+  #     - fraud-net
+
+  # ── Phase 5: observability ──────────────────────────────────────────────
+  # Uncomment once infra/docker/prometheus.yml exists
+  # prometheus:
+  #   image: prom/prometheus:v2.53.0
+  #   container_name: fraud-prometheus
+  #   volumes:
+  #     - ./infra/docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+  #   ports:
+  #     - "9090:9090"
+  #   networks:
+  #     - fraud-net
+  #
+  # grafana:
+  #   image: grafana/grafana:10.4.4
+  #   container_name: fraud-grafana
+  #   environment:
+  #     GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - prometheus
+  #   networks:
+  #     - fraud-net
+
+volumes:
+  postgres_data:
+  mlflow_data:
+
+networks:
+  fraud-net:
+    driver: bridge

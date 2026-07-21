@@ -1,0 +1,44 @@
+# --- Core -------------------------------------------------------------
+python-dotenv
+pydantic
+pydantic-settings
+
+# --- Data & ML ----------------------------------------------------------
+pandas
+numpy
+scikit-learn
+xgboost
+lightgbm
+torch          # CPU is sufficient; used only for the small autoencoder (Phase 2)
+imbalanced-learn
+
+# --- Streaming ------------------------------------------------------------
+kafka-python   # works against Redpanda's Kafka-compatible API
+redis
+
+# --- Experiment tracking -----------------------------------------------------
+mlflow
+
+# --- Serving -------------------------------------------------------------------
+fastapi
+uvicorn[standard]
+
+# --- Monitoring ------------------------------------------------------------------
+prometheus-client
+
+# --- Data & model versioning ---------------------------------------------------------
+dvc
+
+# --- Testing & quality ----------------------------------------------------------------
+pytest
+pytest-cov
+httpx          # needed for FastAPI's TestClient
+black
+ruff
+mypy
+pre-commit
+
+# NOTE on Airflow (Phase 6):
+# Do not `pip install apache-airflow` directly into this environment — its
+# dependency set is heavy and version-sensitive. Stand it up via the official
+# Airflow Docker Compose file when you reach Phase 6; see docs/ROADMAP.md.
