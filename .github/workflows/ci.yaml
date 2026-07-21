@@ -27,6 +27,7 @@ jobs:
           pip install --prefer-binary \
             numpy pandas scikit-learn pyarrow \
             structlog python-dotenv pyyaml \
+            pydantic pydantic-settings \
             pytest pytest-cov ruff black
 
       - name: Lint with ruff

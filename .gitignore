@@ -72,3 +72,8 @@ airflow.cfg
 tmp/
 temp/
 *.tmp
+
+# ── Editor / Tool caches ─────────────────────────────────────────
+.ruff_cache/
+.qodo/
+.mypy_cache/
