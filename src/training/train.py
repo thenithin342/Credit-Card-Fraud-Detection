@@ -45,8 +45,10 @@ import matplotlib
 matplotlib.use("Agg")  # headless backend — no DISPLAY required
 import matplotlib.pyplot as plt
 import mlflow
+import mlflow.lightgbm
 import mlflow.pyfunc
 import mlflow.sklearn
+import mlflow.xgboost
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -401,7 +403,18 @@ def log_run(
         mlflow.log_artifact(str(metrics_path), artifact_path="reports")
 
         # ── Model ──
-        mlflow.sklearn.log_model(model, artifact_path="model")
+        # Use the native MLflow flavour for each framework so we avoid
+        # the skops "untrusted types" error that occurs when XGBoost /
+        # LightGBM objects are serialised through mlflow.sklearn.
+        import xgboost as _xgb
+        import lightgbm as _lgb
+
+        if isinstance(model, _xgb.XGBClassifier):
+            mlflow.xgboost.log_model(model, artifact_path="model")
+        elif isinstance(model, _lgb.LGBMClassifier):
+            mlflow.lightgbm.log_model(model, artifact_path="model")
+        else:
+            mlflow.sklearn.log_model(model, artifact_path="model")
 
         # ── Tags ──
         mlflow.set_tags(
