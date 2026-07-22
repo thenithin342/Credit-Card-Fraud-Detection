@@ -10,6 +10,9 @@ jobs:
   lint-and-test:
     name: Lint & Unit Tests
     runs-on: ubuntu-latest
+    env:
+      MLFLOW_ALLOW_FILE_STORE: "true"
+      MLFLOW_TRACKING_URI: "./mlruns"
 
     steps:
       - name: Checkout code
