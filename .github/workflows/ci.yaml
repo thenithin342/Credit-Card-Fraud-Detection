@@ -28,7 +28,8 @@ jobs:
             numpy pandas scikit-learn pyarrow \
             structlog python-dotenv pyyaml \
             pydantic pydantic-settings \
-            pytest pytest-cov ruff black
+            matplotlib mlflow xgboost lightgbm fakeredis \
+            pytest pytest-cov ruff
 
       - name: Lint with ruff
         run: ruff check src/ tests/
