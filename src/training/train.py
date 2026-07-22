@@ -43,6 +43,7 @@ from typing import Any
 import matplotlib
 
 matplotlib.use("Agg")  # headless backend — no DISPLAY required
+import lightgbm as _lgb
 import matplotlib.pyplot as plt
 import mlflow
 import mlflow.lightgbm
@@ -53,6 +54,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import structlog
+import xgboost as _xgb
 import yaml
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
@@ -406,9 +408,6 @@ def log_run(
         # Use the native MLflow flavour for each framework so we avoid
         # the skops "untrusted types" error that occurs when XGBoost /
         # LightGBM objects are serialised through mlflow.sklearn.
-        import xgboost as _xgb
-        import lightgbm as _lgb
-
         if isinstance(model, _xgb.XGBClassifier):
             mlflow.xgboost.log_model(model, artifact_path="model")
         elif isinstance(model, _lgb.LGBMClassifier):
