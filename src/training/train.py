@@ -1,0 +1,503 @@
+﻿"""src/training/train.py
+────────────────────────────────────────────────────────────────────────
+FraudGuard Phase 2 — train three classifiers and log everything to
+MLflow.
+
+Models
+------
+1. Logistic Regression (baseline)      — class_weight=balanced
+2. XGBoost (primary)                   — scale_pos_weight from data
+3. LightGBM (primary alt)              — is_unbalance=True
+
+For each model we log:
+    * params  : model type, hyperparameters, train/val row counts,
+                fraud rate
+    * metrics : pr_auc, roc_auc, f1, precision_at_90_recall,
+                average_precision
+    * artifacts: classification_report.txt, confusion_matrix.png,
+                 pr_curve.png
+    * tags    : phase=2, dataset=ieee_cis
+
+After all three runs:
+    * Pick the run with the highest `pr_auc`
+    * Register that model in the MLflow Model Registry as
+      `fraud-detector` at stage `Staging`.
+
+MLflow is hard-wired to the local file backend (``./mlruns``) so the
+script works with zero Docker dependencies.  Phase 3 will switch the
+tracking URI to the dockerised server via ``get_settings()``.
+
+Usage
+-----
+    python -m src.training.train
+────────────────────────────────────────────────────────────────────────
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+import matplotlib
+
+matplotlib.use("Agg")  # headless backend — no DISPLAY required
+import matplotlib.pyplot as plt
+import mlflow
+import mlflow.pyfunc
+import mlflow.sklearn
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import structlog
+import yaml
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (
+    average_precision_score,
+    classification_report,
+    confusion_matrix,
+    f1_score,
+    precision_recall_curve,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
+
+from src.config import get_settings
+from src.features.definitions import FEATURE_NAMES, TARGET_COL
+
+log = structlog.get_logger(__name__)
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PARAMS_FILE = PROJECT_ROOT / "params.yaml"
+LOCAL_MLFLOW_URI: str = "file:./mlruns"  # hard-wired for Phase 2
+REPORT_DIR = PROJECT_ROOT / "reports" / "training"
+
+
+# ── Data loading ────────────────────────────────────────────────────────────
+
+
+def load_params() -> dict:
+    with open(PARAMS_FILE, encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def load_feature_splits(params: dict) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Load the engineered feature parquets produced by offline_store."""
+    features_dir = PROJECT_ROOT / params["data"]["features_dir"]
+    train = pd.read_parquet(features_dir / "train_features.parquet")
+    val = pd.read_parquet(features_dir / "val_features.parquet")
+    test = pd.read_parquet(features_dir / "test_features.parquet")
+    return train, val, test
+
+
+def split_xy(df: pd.DataFrame) -> tuple[pd.DataFrame, np.ndarray]:
+    X = df[list(FEATURE_NAMES)].astype(np.float64)
+    y = df[TARGET_COL].astype(int).to_numpy()
+    return X, y
+
+
+# ── Metrics ─────────────────────────────────────────────────────────────────
+
+
+def compute_metrics(
+    y_true: np.ndarray, y_proba: np.ndarray, threshold: float = 0.5
+) -> dict[str, float]:
+    """Compute the suite of metrics we log to MLflow.
+
+    `y_proba` is the predicted probability of class=1.
+    """
+    y_pred = (y_proba >= threshold).astype(int)
+
+    # PR-AUC (area under the precision-recall curve) — primary metric.
+    precision_arr, recall_arr, _ = precision_recall_curve(y_true, y_proba)
+    # Use sklearn's average_precision_score (numerically stable).
+    pr_auc = float(average_precision_score(y_true, y_proba))
+
+    roc_auc = float(roc_auc_score(y_true, y_proba))
+    avg_precision = float(average_precision_score(y_true, y_proba))
+    f1 = float(f1_score(y_true, y_pred, zero_division=0))
+
+    # precision at 90% recall — useful operating point for fraud:
+    # if we must catch 90% of fraud, how precise can we be?
+    precision_at_90_recall = float(_precision_at_recall(y_true, y_proba, target_recall=0.9))
+    recall_at_threshold = float(recall_score(y_true, y_pred, zero_division=0))
+    precision_at_threshold = float(precision_score(y_true, y_pred, zero_division=0))
+
+    return {
+        "pr_auc": pr_auc,
+        "roc_auc": roc_auc,
+        "f1": f1,
+        "avg_precision": avg_precision,
+        "precision_at_90_recall": precision_at_90_recall,
+        "recall_at_0.5": recall_at_threshold,
+        "precision_at_0.5": precision_at_threshold,
+    }
+
+
+def _precision_at_recall(y_true: np.ndarray, y_proba: np.ndarray, target_recall: float) -> float:
+    """Return the precision achievable at the lowest threshold whose
+    recall is >= target_recall.  Returns 0.0 if unachievable."""
+    precision_arr, recall_arr, thresholds = precision_recall_curve(y_true, y_proba)
+    # precision_recall_curve returns one more point than thresholds.
+    # Walk the recall array, find the largest threshold that still
+    # meets the recall target, and return the corresponding precision.
+    if target_recall <= 0:
+        return float(precision_arr[0])
+    # The curve is decreasing in precision as recall increases.
+    # Find the *highest* threshold satisfying recall >= target.
+    for i in range(len(recall_arr) - 1, -1, -1):
+        if recall_arr[i] >= target_recall:
+            return float(precision_arr[i])
+    return 0.0
+
+
+# ── Artifacts (plots + reports) ─────────────────────────────────────────────
+
+
+def _make_confusion_matrix_png(y_true: np.ndarray, y_pred: np.ndarray, out_path: Path) -> None:
+    cm = confusion_matrix(y_true, y_pred)
+    fig, ax = plt.subplots(figsize=(5, 4))
+    sns.heatmap(
+        cm,
+        annot=True,
+        fmt="d",
+        cmap="Blues",
+        xticklabels=["Legit", "Fraud"],
+        yticklabels=["Legit", "Fraud"],
+        ax=ax,
+    )
+    ax.set_xlabel("Predicted")
+    ax.set_ylabel("Actual")
+    ax.set_title("Confusion Matrix (val, threshold=0.5)")
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=120)
+    plt.close(fig)
+
+
+def _make_pr_curve_png(y_true: np.ndarray, y_proba: np.ndarray, out_path: Path) -> None:
+    precision_arr, recall_arr, _ = precision_recall_curve(y_true, y_proba)
+    ap = average_precision_score(y_true, y_proba)
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.plot(recall_arr, precision_arr, label=f"AP = {ap:.4f}")
+    ax.set_xlabel("Recall")
+    ax.set_ylabel("Precision")
+    ax.set_title("Precision-Recall Curve (val)")
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc="lower left")
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=120)
+    plt.close(fig)
+
+
+# ── Model trainers ──────────────────────────────────────────────────────────
+
+
+def train_logistic_regression(
+    X_train: pd.DataFrame, y_train: np.ndarray, seed: int, params: dict
+) -> LogisticRegression:
+    cfg = params["training"]["logreg"]
+    model = LogisticRegression(
+        max_iter=int(cfg.get("max_iter", 1000)),
+        C=float(cfg.get("C", 1.0)),
+        class_weight="balanced",
+        random_state=seed,
+        solver="lbfgs",
+        n_jobs=-1,
+    )
+    model.fit(X_train, y_train)
+    return model
+
+
+def train_xgboost(
+    X_train: pd.DataFrame, y_train: np.ndarray, seed: int, params: dict
+) -> Any:  # xgboost.XGBClassifier — avoid hard import for type stubs
+    import xgboost as xgb
+
+    cfg = params["training"]["xgb"]
+    n_pos = float((y_train == 1).sum())
+    n_neg = float((y_train == 0).sum())
+    scale_pos_weight = n_neg / n_pos if n_pos > 0 else 1.0
+
+    model = xgb.XGBClassifier(
+        n_estimators=int(cfg.get("n_estimators", 500)),
+        max_depth=int(cfg.get("max_depth", 6)),
+        learning_rate=float(cfg.get("learning_rate", 0.05)),
+        scale_pos_weight=scale_pos_weight,
+        random_state=seed,
+        n_jobs=-1,
+        eval_metric="logloss",
+        tree_method="hist",
+    )
+    model.fit(X_train, y_train)
+    return model
+
+
+def train_lightgbm(X_train: pd.DataFrame, y_train: np.ndarray, seed: int, params: dict) -> Any:
+    import lightgbm as lgb
+
+    cfg = params["training"]["lgbm"]
+    model = lgb.LGBMClassifier(
+        n_estimators=int(cfg.get("n_estimators", 500)),
+        max_depth=int(cfg.get("max_depth", 6)),
+        learning_rate=float(cfg.get("learning_rate", 0.05)),
+        is_unbalance=True,
+        random_state=seed,
+        n_jobs=-1,
+        verbose=-1,
+    )
+    model.fit(X_train, y_train)
+    return model
+
+
+# ── MLflow helpers ──────────────────────────────────────────────────────────
+
+
+def setup_mlflow(experiment_name: str) -> None:
+    """Configure the local file backend.  Idempotent."""
+    mlflow.set_tracking_uri(LOCAL_MLFLOW_URI)
+    mlflow.set_experiment(experiment_name)
+
+
+def predict_proba(model: Any, X: pd.DataFrame) -> np.ndarray:
+    if hasattr(model, "predict_proba"):
+        return model.predict_proba(X)[:, 1]
+    # XGBoost / LightGBM expose predict_proba on the sklearn wrapper.
+    if hasattr(model, "decision_function"):
+        return model.decision_function(X)
+    raise RuntimeError(f"Model {type(model).__name__} has no predict_proba")
+
+
+def log_run(
+    *,
+    run_name: str,
+    model_type: str,
+    model: Any,
+    model_params: dict[str, Any],
+    X_train: pd.DataFrame,
+    y_train: np.ndarray,
+    X_val: pd.DataFrame,
+    y_val: np.ndarray,
+    extra_tags: dict[str, str] | None = None,
+) -> str:
+    """Train+log one model; return the run_id."""
+    with mlflow.start_run(run_name=run_name) as run:
+        run_id = run.info.run_id
+
+        # ── Params ──
+        fraud_rate = float(np.mean(y_train))
+        n_pos = int((y_train == 1).sum())
+        n_neg = int((y_train == 0).sum())
+        mlflow.log_param("model_type", model_type)
+        mlflow.log_params(model_params)
+        mlflow.log_param("train_rows", int(len(X_train)))
+        mlflow.log_param("val_rows", int(len(X_val)))
+        mlflow.log_param("train_fraud_rate", round(fraud_rate, 6))
+        mlflow.log_param("train_pos_count", n_pos)
+        mlflow.log_param("train_neg_count", n_neg)
+        if n_pos > 0:
+            mlflow.log_param("scale_pos_weight", round(n_neg / n_pos, 6))
+
+        # ── Metrics ──
+        y_val_proba = predict_proba(model, X_val)
+        y_val_pred = (y_val_proba >= 0.5).astype(int)
+        metrics = compute_metrics(y_val, y_val_proba)
+        mlflow.log_metrics(metrics)
+
+        # ── Artifacts ──
+        report_dir = REPORT_DIR / run_id
+        report_dir.mkdir(parents=True, exist_ok=True)
+
+        cls_report = classification_report(
+            y_val, y_val_pred, target_names=["Legit", "Fraud"], zero_division=0
+        )
+        cls_path = report_dir / "classification_report.txt"
+        cls_path.write_text(cls_report)
+        mlflow.log_artifact(str(cls_path), artifact_path="reports")
+
+        cm_path = report_dir / "confusion_matrix.png"
+        _make_confusion_matrix_png(y_val, y_val_pred, cm_path)
+        mlflow.log_artifact(str(cm_path), artifact_path="plots")
+
+        pr_path = report_dir / "pr_curve.png"
+        _make_pr_curve_png(y_val, y_val_proba, pr_path)
+        mlflow.log_artifact(str(pr_path), artifact_path="plots")
+
+        # Metrics json (handy for evaluation script)
+        metrics_path = report_dir / "metrics.json"
+        metrics_path.write_text(json.dumps(metrics, indent=2))
+        mlflow.log_artifact(str(metrics_path), artifact_path="reports")
+
+        # ── Model ──
+        mlflow.sklearn.log_model(model, artifact_path="model")
+
+        # ── Tags ──
+        mlflow.set_tags(
+            {
+                "phase": "2",
+                "dataset": "ieee_cis",
+                **(extra_tags or {}),
+            }
+        )
+
+        log.info(
+            "run_complete",
+            run_id=run_id,
+            model_type=model_type,
+            pr_auc=metrics["pr_auc"],
+            roc_auc=metrics["roc_auc"],
+            f1=metrics["f1"],
+        )
+    return run_id
+
+
+def register_best_model(
+    candidate_runs: list[tuple[str, str, float]],
+    model_name: str,
+    stage: str = "Staging",
+) -> str:
+    """Pick the run with the highest pr_auc and register it.
+
+    Parameters
+    ----------
+    candidate_runs : list of (model_type, run_id, pr_auc)
+    model_name : registry model name
+    stage : target stage (default "Staging")
+    """
+    best = max(candidate_runs, key=lambda r: r[2])
+    model_type, run_id, pr_auc = best
+    log.info(
+        "registering_best",
+        model_type=model_type,
+        run_id=run_id,
+        pr_auc=pr_auc,
+        stage=stage,
+    )
+
+    model_uri = f"runs:/{run_id}/model"
+    mv = mlflow.register_model(model_uri=model_uri, name=model_name)
+    client = mlflow.tracking.MlflowClient()
+    client.transition_model_version_stage(
+        name=model_name,
+        version=mv.version,
+        stage=stage,
+        archive_existing_versions=True,
+    )
+    log.info(
+        "model_registered",
+        name=model_name,
+        version=mv.version,
+        stage=stage,
+    )
+    return mv.version
+
+
+# ── Entry point ─────────────────────────────────────────────────────────────
+
+
+def run() -> None:
+    params = load_params()
+    training_cfg = params["training"]
+    seed = int(training_cfg.get("random_seed", 42))
+    experiment = training_cfg.get("mlflow_experiment", "fraud-detection-phase2")
+    registry_name = get_settings().mlflow_model_name  # "fraud-detector"
+
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    setup_mlflow(experiment)
+
+    train_df, val_df, _ = load_feature_splits(params)
+    X_train, y_train = split_xy(train_df)
+    X_val, y_val = split_xy(val_df)
+    log.info(
+        "data_loaded",
+        train_rows=len(X_train),
+        val_rows=len(X_val),
+        feature_count=len(FEATURE_NAMES),
+    )
+
+    candidates: list[tuple[str, str, float]] = []
+
+    # ── 1. Logistic Regression ──
+    log.info("training_logreg")
+    logreg = train_logistic_regression(X_train, y_train, seed, params)
+    logreg_id = log_run(
+        run_name="logistic_regression",
+        model_type="logistic_regression",
+        model=logreg,
+        model_params={
+            "max_iter": params["training"]["logreg"]["max_iter"],
+            "C": params["training"]["logreg"]["C"],
+            "class_weight": "balanced",
+        },
+        X_train=X_train,
+        y_train=y_train,
+        X_val=X_val,
+        y_val=y_val,
+    )
+    candidates.append(("logistic_regression", logreg_id, _read_metric(logreg_id, "pr_auc")))
+
+    # ── 2. XGBoost ──
+    log.info("training_xgboost")
+    xgb_model = train_xgboost(X_train, y_train, seed, params)
+    xgb_id = log_run(
+        run_name="xgboost",
+        model_type="xgboost",
+        model=xgb_model,
+        model_params={
+            "n_estimators": params["training"]["xgb"]["n_estimators"],
+            "max_depth": params["training"]["xgb"]["max_depth"],
+            "learning_rate": params["training"]["xgb"]["learning_rate"],
+        },
+        X_train=X_train,
+        y_train=y_train,
+        X_val=X_val,
+        y_val=y_val,
+    )
+    candidates.append(("xgboost", xgb_id, _read_metric(xgb_id, "pr_auc")))
+
+    # ── 3. LightGBM ──
+    log.info("training_lightgbm")
+    lgbm = train_lightgbm(X_train, y_train, seed, params)
+    lgbm_id = log_run(
+        run_name="lightgbm",
+        model_type="lightgbm",
+        model=lgbm,
+        model_params={
+            "n_estimators": params["training"]["lgbm"]["n_estimators"],
+            "max_depth": params["training"]["lgbm"]["max_depth"],
+            "learning_rate": params["training"]["lgbm"]["learning_rate"],
+            "is_unbalance": True,
+        },
+        X_train=X_train,
+        y_train=y_train,
+        X_val=X_val,
+        y_val=y_val,
+    )
+    candidates.append(("lightgbm", lgbm_id, _read_metric(lgbm_id, "pr_auc")))
+
+    # ── Register best ──
+    register_best_model(candidates, model_name=registry_name, stage="Staging")
+
+    log.info("training_pipeline_done", candidates=candidates)
+
+
+def _read_metric(run_id: str, metric: str) -> float:
+    """Read a single metric value back from MLflow."""
+    client = mlflow.tracking.MlflowClient()
+    val = client.get_run(run_id).data.metrics.get(metric)
+    return float(val) if val is not None else 0.0
+
+
+def main() -> None:
+    structlog.configure(
+        processors=[
+            structlog.stdlib.add_log_level,
+            structlog.dev.ConsoleRenderer(),
+        ]
+    )
+    run()
+
+
+if __name__ == "__main__":
+    sys.exit(main() or 0)

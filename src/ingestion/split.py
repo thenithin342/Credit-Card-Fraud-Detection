@@ -1,6 +1,6 @@
-"""
+﻿"""
 src/ingestion/split.py
-─────────────────────────────────────────────────────────────────────────────
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Stratified train / val / test split for the IEEE-CIS dataset.
 
 Reads:
@@ -15,11 +15,11 @@ Writes:
 Design decisions:
   - Uses a temporal split *within* the stratified hold-out: transactions are
     sorted by TransactionDT before splitting so that the test set always
-    contains the most recent data — this mirrors real-world deployment where
+    contains the most recent data â€” this mirrors real-world deployment where
     you score future transactions with a model trained on past data.
   - Preserves the isFraud label distribution in every split via stratification.
-  - Saves to Parquet (columnar, ~5× smaller than CSV, faster to read).
-─────────────────────────────────────────────────────────────────────────────
+  - Saves to Parquet (columnar, ~5Ã— smaller than CSV, faster to read).
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ PARAMS_FILE = PROJECT_ROOT / "params.yaml"
 
 
 def load_params() -> dict:
-    with open(PARAMS_FILE) as f:
+    with open(PARAMS_FILE, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -69,13 +69,13 @@ def load_ieee(params: dict) -> pd.DataFrame:
 def split_data(df: pd.DataFrame, params: dict) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Temporal-stratified split.
-    Sort by TransactionDT → stratified split preserving isFraud ratio.
+    Sort by TransactionDT â†’ stratified split preserving isFraud ratio.
     """
     split_cfg = params["split"]
     features_cfg = params["features"]
     target_col = features_cfg["target_col"]
 
-    # Sort by time to prevent data leakage from future → past
+    # Sort by time to prevent data leakage from future â†’ past
     df = df.sort_values("TransactionDT").reset_index(drop=True)
 
     test_size = split_cfg["test_size"]
@@ -92,7 +92,7 @@ def split_data(df: pd.DataFrame, params: dict) -> tuple[pd.DataFrame, pd.DataFra
     )
 
     # Second: split remaining into train + val with stratification
-    # Guard: sklearn requires ≥2 samples per class to stratify.
+    # Guard: sklearn requires â‰¥2 samples per class to stratify.
     # Fall back to non-stratified split on tiny or highly-skewed data.
     val_fraction = val_size / (1.0 - test_size)
     target_col = features_cfg["target_col"]
@@ -156,3 +156,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

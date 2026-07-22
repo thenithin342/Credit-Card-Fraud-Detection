@@ -1,25 +1,25 @@
-"""
+﻿"""
 src/validation/ge_suite.py
-─────────────────────────────────────────────────────────────────────────────
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Great Expectations 0.18.x data validation for FraudGuard.
 
 Uses the stable legacy PandasDataset API (gx.from_pandas) which works
-reliably across all GE 0.18.x releases — avoids the fluent-API churn
+reliably across all GE 0.18.x releases â€” avoids the fluent-API churn
 where context.sources / add_batch_definition_whole_dataframe changed
 between patch versions.
 
 Suites:
-  1. ieee_raw_suite  — IEEE-CIS merged raw data
-  2. ulb_raw_suite   — ULB creditcard.csv
+  1. ieee_raw_suite  â€” IEEE-CIS merged raw data
+  2. ulb_raw_suite   â€” ULB creditcard.csv
 
 Checks: row count, required columns, null rates, isFraud distribution,
         TransactionAmt/DT ranges.
 
 Output:
   - Validation results logged via structlog
-  - Plain-text report → reports/validation/
+  - Plain-text report â†’ reports/validation/
   - Exits with code 1 on any failure (DVC stage fails cleanly)
-─────────────────────────────────────────────────────────────────────────────
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 """
 
 from __future__ import annotations
@@ -40,11 +40,11 @@ REPORT_DIR = PROJECT_ROOT / "reports" / "validation"
 
 
 def load_params() -> dict:
-    with open(PARAMS_FILE) as f:
+    with open(PARAMS_FILE, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
-# ── Column lists ──────────────────────────────────────────────────────────
+# â”€â”€ Column lists â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 IEEE_REQUIRED_COLUMNS = [
     "TransactionID",
@@ -68,7 +68,7 @@ IEEE_REQUIRED_COLUMNS = [
 ULB_REQUIRED_COLUMNS = ["Time", "Amount", "Class"] + [f"V{i}" for i in range(1, 29)]
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────
+# â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 def _save_report(name: str, result) -> None:
@@ -111,7 +111,7 @@ def _log_result(name: str, result) -> bool:
     return result.success
 
 
-# ── Suite runners ─────────────────────────────────────────────────────────
+# â”€â”€ Suite runners â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 def validate_ieee(df: pd.DataFrame, val_cfg: dict) -> bool:
@@ -122,24 +122,24 @@ def validate_ieee(df: pd.DataFrame, val_cfg: dict) -> bool:
     """
     ge_df = gx.from_pandas(df)
 
-    # ── Row count ──────────────────────────────────────────────────────
+    # â”€â”€ Row count â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     ge_df.expect_table_row_count_to_be_between(min_value=val_cfg["expected_ieee_row_count_min"])
 
-    # ── Required columns ───────────────────────────────────────────────
+    # â”€â”€ Required columns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     for col in IEEE_REQUIRED_COLUMNS:
         ge_df.expect_column_to_exist(col)
 
-    # ── isFraud binary ─────────────────────────────────────────────────
+    # â”€â”€ isFraud binary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     ge_df.expect_column_distinct_values_to_be_in_set("isFraud", value_set=[0, 1])
 
-    # ── Positive (fraud) rate ──────────────────────────────────────────
+    # â”€â”€ Positive (fraud) rate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     ge_df.expect_column_mean_to_be_between(
         "isFraud",
         min_value=val_cfg["min_positive_rate"],
         max_value=val_cfg["max_positive_rate"],
     )
 
-    # ── TransactionAmt positive ────────────────────────────────────────
+    # â”€â”€ TransactionAmt positive â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     ge_df.expect_column_values_to_be_between(
         "TransactionAmt",
         min_value=0.01,
@@ -147,7 +147,7 @@ def validate_ieee(df: pd.DataFrame, val_cfg: dict) -> bool:
         mostly=0.999,
     )
 
-    # ── TransactionDT sanity (<26M seconds ≈ 10 months) ───────────────
+    # â”€â”€ TransactionDT sanity (<26M seconds â‰ˆ 10 months) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     ge_df.expect_column_values_to_be_between(
         "TransactionDT",
         min_value=0,
@@ -155,7 +155,7 @@ def validate_ieee(df: pd.DataFrame, val_cfg: dict) -> bool:
         mostly=1.0,
     )
 
-    # ── Null rates for key columns ─────────────────────────────────────
+    # â”€â”€ Null rates for key columns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     max_null = val_cfg["max_null_rate"]
     for col in ["TransactionAmt", "card1", "isFraud", "TransactionDT"]:
         ge_df.expect_column_values_to_not_be_null(col, mostly=1.0 - max_null)
@@ -196,7 +196,7 @@ def validate_ulb(df: pd.DataFrame, val_cfg: dict) -> bool:
     return result.success
 
 
-# ── Entry point ───────────────────────────────────────────────────────────
+# â”€â”€ Entry point â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 
 def main() -> None:
@@ -213,7 +213,7 @@ def main() -> None:
 
     all_passed = True
 
-    # ── IEEE-CIS ──────────────────────────────────────────────────────────
+    # â”€â”€ IEEE-CIS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     ieee_txn_path = PROJECT_ROOT / data_cfg["ieee_train_transactions"]
     ieee_id_path = PROJECT_ROOT / data_cfg["ieee_train_identity"]
 
@@ -229,7 +229,7 @@ def main() -> None:
             hint="Run: python -m src.ingestion.download",
         )
 
-    # ── ULB ───────────────────────────────────────────────────────────────
+    # â”€â”€ ULB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     ulb_path = PROJECT_ROOT / data_cfg["ulb_csv"]
 
     if ulb_path.exists():
@@ -251,3 +251,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

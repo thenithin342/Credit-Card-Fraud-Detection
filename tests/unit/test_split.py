@@ -1,11 +1,11 @@
-"""
+﻿"""
 tests/unit/test_split.py
-─────────────────────────────────────────────────────────────────────────────
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Unit tests for src/ingestion/split.py
 
-Uses the synthetic_ieee_df fixture from conftest.py —
+Uses the synthetic_ieee_df fixture from conftest.py â€”
 no real data download required. These always run in CI.
-─────────────────────────────────────────────────────────────────────────────
+â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ PARAMS_FILE = PROJECT_ROOT / "params.yaml"
 
 @pytest.fixture(scope="module")
 def params():
-    with open(PARAMS_FILE) as f:
+    with open(PARAMS_FILE, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -69,7 +69,7 @@ class TestSplitData:
         enforced on tiny data, but the max of train <= max of test).
         """
         train, val, test = split_data(synthetic_ieee_df, params)
-        # The test set was carved from the tail — its max DT >= train's max DT
+        # The test set was carved from the tail â€” its max DT >= train's max DT
         assert test["TransactionDT"].max() >= train["TransactionDT"].max()
 
     def test_both_classes_in_train(self, synthetic_ieee_df, params):
@@ -82,7 +82,7 @@ class TestSplitData:
 
     def test_split_sizes_approximately_correct(self, synthetic_ieee_df, params):
         """
-        Test size should be within ±5% of the configured test_size fraction.
+        Test size should be within Â±5% of the configured test_size fraction.
         (Relaxed for tiny synthetic data.)
         """
         split_cfg = params["split"]

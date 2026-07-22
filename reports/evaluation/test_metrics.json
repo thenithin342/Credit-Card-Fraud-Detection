@@ -1,0 +1,14 @@
+{
+  "pr_auc": 0.08697164770917844,
+  "roc_auc": 0.6998409067818693,
+  "f1": 0.1255589445941544,
+  "avg_precision": 0.08697164770917844,
+  "precision_at_90_recall": 0.04335407407407407,
+  "recall_at_0.5": 0.5216535433070866,
+  "precision_at_0.5": 0.0713684564888066,
+  "test_rows": 118108,
+  "test_fraud_rate": 0.034409184813899145,
+  "model_name": "fraud-detector",
+  "stage": "Staging",
+  "threshold": 0.5
+}
