@@ -183,34 +183,61 @@ def drop_correlated_cols(
     dropped: set[str] = set()
     n_blocks = (len(numeric_cols) + block_size - 1) // block_size
 
-    for block_idx in range(n_blocks):
-        start = block_idx * block_size
-        end = min(start + block_size, len(numeric_cols))
-        block_cols = numeric_cols[start:end]
-        # Use min_periods=50 so constant-ish segments don't blow up
-        # the correlation with spurious NaN.
-        corr = df[block_cols].corr(min_periods=50).abs()
+    for i in range(n_blocks):
+        start_i = i * block_size
+        end_i = min(start_i + block_size, len(numeric_cols))
+        block_i_cols = [c for c in numeric_cols[start_i:end_i] if c not in dropped]
+        if not block_i_cols:
+            continue
 
-        # Upper triangle only (drop the diagonal and below).
-        for i, col_i in enumerate(block_cols):
-            if col_i in dropped:
+        for j in range(i, n_blocks):
+            start_j = j * block_size
+            end_j = min(start_j + block_size, len(numeric_cols))
+            block_j_cols = [c for c in numeric_cols[start_j:end_j] if c not in dropped]
+            if not block_j_cols:
                 continue
-            for j in range(i + 1, len(block_cols)):
-                col_j = block_cols[j]
-                if col_j in dropped:
-                    continue
-                r = corr.iloc[i, j]
-                if pd.isna(r):
-                    continue
-                if r > threshold:
-                    # Keep the alphabetically-first column; drop the
-                    # later one.  This makes the choice deterministic
-                    # and independent of column order in the frame.
-                    if col_i < col_j:
-                        dropped.add(col_j)
-                    else:
-                        dropped.add(col_i)
-                        break  # col_i just got dropped, move on
+
+            if i == j:
+                # Same block: check upper triangle
+                corr = df[block_i_cols].corr(min_periods=50).abs()
+                for r_idx in range(len(block_i_cols)):
+                    col_r = block_i_cols[r_idx]
+                    if col_r in dropped:
+                        continue
+                    for c_idx in range(r_idx + 1, len(block_i_cols)):
+                        col_c = block_i_cols[c_idx]
+                        if col_c in dropped:
+                            continue
+                        r = corr.iloc[r_idx, c_idx]
+                        if pd.isna(r):
+                            continue
+                        if r > threshold:
+                            if col_r < col_c:
+                                dropped.add(col_c)
+                            else:
+                                dropped.add(col_r)
+                                break
+            else:
+                # Cross-block: check combinations of block i and block j
+                combined_cols = block_i_cols + block_j_cols
+                corr = df[combined_cols].corr(min_periods=50).abs()
+                
+                for r_idx, col_r in enumerate(block_i_cols):
+                    if col_r in dropped:
+                        continue
+                    for c_idx, col_c in enumerate(block_j_cols):
+                        if col_c in dropped:
+                            continue
+                        r = corr.iloc[r_idx, len(block_i_cols) + c_idx]
+                        if pd.isna(r):
+                            continue
+                        if r > threshold:
+                            if col_r < col_c:
+                                dropped.add(col_c)
+                            else:
+                                dropped.add(col_r)
+                                break
+
     dropped_cols = sorted(dropped)
     if dropped_cols:
         log.info(

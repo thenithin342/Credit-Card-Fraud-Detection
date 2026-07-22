@@ -43,7 +43,7 @@ from src.features.definitions import (
     TARGET_COL,
     assemble_features,
 )
-from src.features.preprocessing import FeaturePreprocessor
+from src.features.preprocessing import FeaturePreprocessor, NUMERIC_NULL_FILL
 from src.features.selection import (
     CORRELATION_THRESHOLD,
     HIGH_NULL_THRESHOLD,
@@ -227,7 +227,7 @@ def run(params: dict | None = None) -> None:
             [
                 split_ids,
                 processed[name].reset_index(drop=True),
-                temporal_rows[list(FEATURE_NAMES)].reset_index(drop=True),
+                temporal_rows[list(FEATURE_NAMES)].fillna(NUMERIC_NULL_FILL).reset_index(drop=True),
             ],
             axis=1,
         )
