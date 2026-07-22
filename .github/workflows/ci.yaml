@@ -28,7 +28,7 @@ jobs:
             numpy pandas scikit-learn pyarrow \
             structlog python-dotenv pyyaml \
             pydantic pydantic-settings \
-            matplotlib mlflow xgboost lightgbm fakeredis \
+            matplotlib seaborn mlflow xgboost lightgbm fakeredis \
             pytest pytest-cov ruff
 
       - name: Lint with ruff
