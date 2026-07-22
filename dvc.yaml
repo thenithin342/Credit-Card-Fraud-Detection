@@ -1,30 +1,18 @@
 vars:
-  - python: ".venv\\Scripts\\python"
+  - python: '.venv\Scripts\python'
 
 stages:
 
-  # ────────────────────────────────────────────────────────────────
   # Stage 1: ingest
-  # Downloads IEEE-CIS and ULB datasets from Kaggle into data/raw/
-  # ────────────────────────────────────────────────────────────────
   ingest:
     cmd: .venv\Scripts\python -m src.ingestion.download
     params:
-      - params.yaml:
-          - data.raw_dir
+      - data.raw_dir
     outs:
-      - data/raw/ieee-cis:
-          cache: true
-          persist: true
-      - data/raw/ulb:
-          cache: true
-          persist: true
+      - data/raw/ieee-cis
+      - data/raw/ulb
 
-  # ────────────────────────────────────────────────────────────────
   # Stage 2: validate
-  # Runs Great Expectations suites on raw data; fails fast on schema
-  # violations or unexpected distributions.
-  # ────────────────────────────────────────────────────────────────
   validate:
     cmd: .venv\Scripts\python -m src.validation.ge_suite
     deps:
@@ -32,41 +20,42 @@ stages:
       - data/raw/ulb
       - src/validation/ge_suite.py
     params:
-      - params.yaml:
-          - validation
-          - data
+      - validation
+      - data
     outs:
-      - reports/validation:
-          cache: false
+      - reports/validation
 
-  # ────────────────────────────────────────────────────────────────
   # Stage 3: split
-  # Stratified train/val/test split; saves parquet files to
-  # data/processed/  (DVC-tracked)
-  # ────────────────────────────────────────────────────────────────
   split:
     cmd: .venv\Scripts\python -m src.ingestion.split
     deps:
       - data/raw/ieee-cis
       - src/ingestion/split.py
-      - reports/validation
     params:
-      - params.yaml:
-          - split
-          - data
-          - features
+      - split
+      - data
+      - features
     outs:
       - data/processed/train.parquet
       - data/processed/val.parquet
       - data/processed/test.parquet
 
-  # ────────────────────────────────────────────────────────────────
-  # Stage 4: feature_engineer   (added in Phase 2)
-  # ────────────────────────────────────────────────────────────────
-  # feature_engineer:
-  #   cmd: .venv\Scripts\python -m src.features.feature_engineering
-  #   ...
-
-  # ────────────────────────────────────────────────────────────────
-  # Stage 5: train, Stage 6: evaluate  (added in Phase 3)
-  # ────────────────────────────────────────────────────────────────
+  # Stage 4: feature_engineer (Phase 2B)
+  feature_engineer:
+    cmd: .venv\Scripts\python -m src.features.offline_store
+    deps:
+      - src/features/definitions.py
+      - src/features/offline_store.py
+      - src/features/selection.py
+      - src/features/preprocessing.py
+      - data/processed/train.parquet
+      - data/processed/val.parquet
+      - data/processed/test.parquet
+    params:
+      - features
+    outs:
+      - data/features/train_features.parquet
+      - data/features/val_features.parquet
+      - data/features/test_features.parquet
+      - models/encoders/feature_preprocessor.pkl
+      - models/feature_columns.json

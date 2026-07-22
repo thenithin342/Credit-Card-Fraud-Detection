@@ -1,9 +1,7 @@
-# ─────────────────────────────────────────────────────────────────
-# FraudGuard — Global Parameters
+# FraudGuard - Global Parameters
 # All pipeline stages read from this file via ${params:...} in dvc.yaml
-# ─────────────────────────────────────────────────────────────────
 
-# ── Dataset Paths (relative to project root) ─────────────────────
+# Dataset Paths (relative to project root)
 data:
   raw_dir: data/raw
   processed_dir: data/processed
@@ -15,37 +13,50 @@ data:
   ieee_test_transactions:  data/raw/ieee-cis/test_transaction.csv
   ieee_test_identity:      data/raw/ieee-cis/test_identity.csv
 
-  # ULB (secondary — used for drift simulation)
+  # ULB (secondary - used for drift simulation)
   ulb_csv: data/raw/ulb/creditcard.csv
 
-# ── Split Configuration ───────────────────────────────────────────
+# Split Configuration
 split:
   test_size: 0.20         # 20% held out for final evaluation
   val_size:  0.10         # 10% of train for validation / early stopping
   random_seed: 42
   stratify: true          # stratify on isFraud label
 
-# ── Validation Thresholds (Great Expectations) ────────────────────
+# Validation Thresholds (Great Expectations)
 validation:
-  max_null_rate: 0.50                  # columns with >50% nulls are flagged
-  min_positive_rate: 0.001             # at least 0.1% fraud in any split
-  max_positive_rate: 0.05             # sanity upper bound
-  expected_ieee_row_count_min: 500000  # guard against partial downloads
+  max_null_rate: 0.50
+  min_positive_rate: 0.001
+  max_positive_rate: 0.05
+  expected_ieee_row_count_min: 500000
   expected_ulb_row_count_min:  280000
 
-# ── Feature Engineering ───────────────────────────────────────────
+# Feature Engineering
 features:
-  velocity_windows_hours: [1, 6, 24, 168]   # 1h, 6h, 24h, 7d
+  velocity_windows_hours: [1, 6, 24, 168]
   spend_agg_functions: ["mean", "std", "max", "count"]
   cyclical_features: ["hour_of_day", "day_of_week"]
-  card_id_col: "card1"                       # surrogate card identifier in IEEE-CIS
+  card_id_col: "card1"
   target_col: "isFraud"
 
-# ── Training ──────────────────────────────────────────────────────
+  # Phase 2 additions
+  card_col: card1
+  window_minutes: [5, 60]
+  rolling_amount_window: 20
+  numeric_null_fill: -999
+
+  # Phase 2B - raw-column selection and encoding thresholds (fit on train only)
+  null_drop_threshold: 0.80
+  variance_threshold: 0.01
+  correlation_threshold: 0.95
+  encoder_path: models/encoders/feature_preprocessor.pkl
+  feature_columns_path: models/feature_columns.json
+
+# Training
 training:
   models: ["xgboost", "lightgbm", "logistic_regression"]
   primary_model: "xgboost"
-  imbalance_strategy: "scale_pos_weight"    # or smote | class_weight
+  imbalance_strategy: "scale_pos_weight"
   early_stopping_rounds: 50
   n_jobs: -1
   random_seed: 42
@@ -62,29 +73,29 @@ training:
     max_iter: 1000
     C: 1.0
 
-# ── Optuna Tuning ─────────────────────────────────────────────────
+# Optuna Tuning
 tuning:
   n_trials: 50
-  timeout_seconds: 3600                     # 1 hour max
-  metric: "average_precision"               # AUC-PR
+  timeout_seconds: 3600
+  metric: "average_precision"
   direction: "maximize"
   pruner: "MedianPruner"
 
-# ── Evaluation & Promotion Gate ───────────────────────────────────
+# Evaluation and Promotion Gate
 evaluation:
-  primary_metric: "average_precision"       # AUC-PR
-  promotion_threshold: 0.70                 # min AUC-PR to promote to Staging
-  operating_fpr: 0.01                       # precision/recall reported at this FPR
-  fn_cost: 10.0                             # relative cost of a false negative
-  fp_cost: 1.0                              # relative cost of a false positive
+  primary_metric: "average_precision"
+  promotion_threshold: 0.70
+  operating_fpr: 0.01
+  fn_cost: 10.0
+  fp_cost: 1.0
 
-# ── Monitoring & Drift ────────────────────────────────────────────
+# Monitoring and Drift
 monitoring:
-  drift_score_threshold: 0.20               # Evidently drift score > this triggers retrain
-  reference_window_days: 30                 # days of history used as drift reference
+  drift_score_threshold: 0.20
+  reference_window_days: 30
   report_output_dir: reports/evidently
 
-# ── Serving ───────────────────────────────────────────────────────
+# Serving
 serving:
   host: "0.0.0.0"
   port: 8000
@@ -94,5 +105,5 @@ serving:
   redis_host: "localhost"
   redis_port: 6379
   feast_repo_path: "src/features/feast_repo"
-  shap_top_k: 10                            # number of top SHAP features to return
+  shap_top_k: 10
   latency_sla_ms: 100
