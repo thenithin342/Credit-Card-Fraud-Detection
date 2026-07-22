@@ -43,7 +43,7 @@ from src.features.definitions import (
     TARGET_COL,
     assemble_features,
 )
-from src.features.preprocessing import FeaturePreprocessor, NUMERIC_NULL_FILL
+from src.features.preprocessing import NUMERIC_NULL_FILL, FeaturePreprocessor
 from src.features.selection import (
     CORRELATION_THRESHOLD,
     HIGH_NULL_THRESHOLD,

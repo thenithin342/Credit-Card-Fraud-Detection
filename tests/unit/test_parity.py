@@ -152,8 +152,7 @@ def test_offline_online_parity_empty_history() -> None:
         offline_val = float(offline_features.iloc[-1][fname])
         online_val = float(online_view[fname])
         assert abs(offline_val - online_val) < 1e-6, (
-            f"Empty-history feature '{fname}' differs: "
-            f"offline={offline_val} vs online={online_val}"
+            f"Empty-history feature '{fname}' differs: offline={offline_val} vs online={online_val}"
         )
 
 

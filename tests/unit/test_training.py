@@ -1,4 +1,4 @@
-﻿"""tests/unit/test_training.py
+"""tests/unit/test_training.py
 ────────────────────────────────────────────────────────────────────────
 Fast smoke test for src/training/train.py.
 

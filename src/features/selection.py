@@ -221,7 +221,7 @@ def drop_correlated_cols(
                 # Cross-block: check combinations of block i and block j
                 combined_cols = block_i_cols + block_j_cols
                 corr = df[combined_cols].corr(min_periods=50).abs()
-                
+
                 for r_idx, col_r in enumerate(block_i_cols):
                     if col_r in dropped:
                         continue

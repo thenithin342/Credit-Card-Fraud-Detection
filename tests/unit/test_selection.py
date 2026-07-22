@@ -102,7 +102,7 @@ def test_drop_correlated_cols_cross_block() -> None:
     rng = np.random.default_rng(0)
     n = 200
     base = rng.standard_normal(size=n)
-    
+
     # Create 3 columns:
     # A in block 1 (idx 0)
     # B in block 2 (idx 5)
@@ -114,14 +114,15 @@ def test_drop_correlated_cols_cross_block() -> None:
     df_data["B_col"] = base + 0.0
     for i in range(6, 10):
         df_data[f"noise_{i}"] = rng.standard_normal(size=n)
-        
+
     df = pd.DataFrame(df_data)
     # Set block size to 5 so A and B end up in different blocks
     out, dropped = drop_correlated_cols(df, threshold=0.95, block_size=5)
-    
+
     assert "A_col" in out.columns
     assert "B_col" not in out.columns
     assert "B_col" in dropped
+
 
 # ── Tests for FeaturePreprocessor ──────────────────────────────────────────
 

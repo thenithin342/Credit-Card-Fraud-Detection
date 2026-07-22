@@ -80,9 +80,9 @@ class TestIEEESchema:
 
     def test_row_count(self, ieee_df):
         """Dataset must have at least the expected minimum row count."""
-        assert (
-            len(ieee_df) >= val_cfg["expected_ieee_row_count_min"]
-        ), f"Expected ≥{val_cfg['expected_ieee_row_count_min']} rows, got {len(ieee_df)}"
+        assert len(ieee_df) >= val_cfg["expected_ieee_row_count_min"], (
+            f"Expected ≥{val_cfg['expected_ieee_row_count_min']} rows, got {len(ieee_df)}"
+        )
 
     def test_required_columns_present(self, ieee_df):
         """All required columns must be present after merge."""
@@ -124,9 +124,9 @@ class TestIEEESchema:
         critical_cols = ["TransactionAmt", "card1", "isFraud", "TransactionDT"]
         for col in critical_cols:
             null_rate = ieee_df[col].isnull().mean()
-            assert (
-                null_rate <= max_null
-            ), f"Column '{col}' has null rate {null_rate:.2%}, exceeds threshold {max_null:.2%}"
+            assert null_rate <= max_null, (
+                f"Column '{col}' has null rate {null_rate:.2%}, exceeds threshold {max_null:.2%}"
+            )
 
     def test_no_duplicate_transaction_ids(self, ieee_df):
         """TransactionID must be unique (it's the primary key)."""
@@ -141,9 +141,9 @@ class TestULBSchema:
     REQUIRED_COLS = ["Time", "Amount", "Class"] + [f"V{i}" for i in range(1, 29)]
 
     def test_row_count(self, ulb_df):
-        assert (
-            len(ulb_df) >= val_cfg["expected_ulb_row_count_min"]
-        ), f"Expected ≥{val_cfg['expected_ulb_row_count_min']} rows, got {len(ulb_df)}"
+        assert len(ulb_df) >= val_cfg["expected_ulb_row_count_min"], (
+            f"Expected ≥{val_cfg['expected_ulb_row_count_min']} rows, got {len(ulb_df)}"
+        )
 
     def test_required_columns_present(self, ulb_df):
         missing = [c for c in self.REQUIRED_COLS if c not in ulb_df.columns]
@@ -155,9 +155,9 @@ class TestULBSchema:
 
     def test_fraud_rate_in_expected_range(self, ulb_df):
         rate = ulb_df["Class"].mean()
-        assert (
-            val_cfg["min_positive_rate"] <= rate <= val_cfg["max_positive_rate"]
-        ), f"Fraud rate {rate:.4f} outside expected range"
+        assert val_cfg["min_positive_rate"] <= rate <= val_cfg["max_positive_rate"], (
+            f"Fraud rate {rate:.4f} outside expected range"
+        )
 
     def test_amount_non_negative(self, ulb_df):
         assert (ulb_df["Amount"] >= 0).all(), "ULB Amount has negative values"

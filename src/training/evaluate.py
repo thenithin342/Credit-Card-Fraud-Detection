@@ -1,4 +1,4 @@
-﻿"""src/training/evaluate.py
+"""src/training/evaluate.py
 ────────────────────────────────────────────────────────────────────────
 Standalone evaluation script for a registered MLflow model.
 
