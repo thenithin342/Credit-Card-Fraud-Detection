@@ -28,6 +28,7 @@ from src.config import get_settings
 from src.training.train import (
     LOCAL_MLFLOW_URI,
     compute_metrics,
+    load_feature_columns,
     load_params,
     predict_proba,
     split_xy,
@@ -42,11 +43,24 @@ REPORT_DIR = PROJECT_ROOT / "reports" / "evaluation"
 def load_test_split(params: dict) -> tuple[pd.DataFrame, np.ndarray]:
     features_dir = PROJECT_ROOT / params["data"]["features_dir"]
     test = pd.read_parquet(features_dir / "test_features.parquet")
-    return split_xy(test)
+    feature_cols = load_feature_columns(params)
+    return split_xy(test, feature_cols)
 
 
 def resolve_model_uri(model_name: str, stage: str) -> str:
-    """Resolve ``models:/<name>/<stage>`` via MLflow's registry helper."""
+    """Resolve model URI from MLflow registry (Staging stage or latest version)."""
+    try:
+        client = mlflow.tracking.MlflowClient()
+        versions = client.search_model_versions(f"name='{model_name}'")
+        staging_versions = [v for v in versions if getattr(v, "current_stage", None) == stage]
+        if staging_versions:
+            latest = max(staging_versions, key=lambda v: int(v.version))
+            return f"runs:/{latest.run_id}/model"
+        if versions:
+            latest = max(versions, key=lambda v: int(v.version))
+            return f"runs:/{latest.run_id}/model"
+    except Exception:
+        pass
     return f"models:/{model_name}/{stage}"
 
 
@@ -65,7 +79,10 @@ def evaluate(
 
     model_uri = resolve_model_uri(model_name, stage)
     log.info("loading_model", uri=model_uri)
-    model = mlflow.sklearn.load_model(model_uri)
+    try:
+        model = mlflow.xgboost.load_model(model_uri)
+    except Exception:
+        model = mlflow.pyfunc.load_model(model_uri)
     y_proba = predict_proba(model, X_test)
 
     metrics = compute_metrics(y_test, y_proba, threshold=threshold)

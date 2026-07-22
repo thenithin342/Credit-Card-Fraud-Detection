@@ -75,7 +75,7 @@ log = structlog.get_logger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PARAMS_FILE = PROJECT_ROOT / "params.yaml"
-LOCAL_MLFLOW_URI: str = "file:./mlruns"  # hard-wired for Phase 2B
+LOCAL_MLFLOW_URI: str = (PROJECT_ROOT / "mlruns").as_uri()
 REPORT_DIR = PROJECT_ROOT / "reports" / "training"
 FEATURE_COLUMNS_PATH = PROJECT_ROOT / "models" / "feature_columns.json"
 
@@ -258,38 +258,66 @@ def train_logistic_regression(
 ) -> LogisticRegression:
     cfg = params["training"]["logreg"]
     model = LogisticRegression(
-        max_iter=int(cfg.get("max_iter", 1000)),
+        max_iter=int(cfg.get("max_iter", 200)),
         C=float(cfg.get("C", 1.0)),
         class_weight="balanced",
         random_state=seed,
         solver="lbfgs",
-        n_jobs=-1,
     )
-    model.fit(X_train, y_train)
+    if len(X_train) > 50000:
+        idx = np.random.default_rng(seed).choice(len(X_train), size=50000, replace=False)
+        model.fit(X_train.iloc[idx], y_train[idx])
+    else:
+        model.fit(X_train, y_train)
     return model
 
 
 def train_xgboost(
-    X_train: pd.DataFrame, y_train: np.ndarray, seed: int, params: dict
+    X_train: pd.DataFrame,
+    y_train: np.ndarray,
+    seed: int,
+    params: dict,
+    X_val: pd.DataFrame | None = None,
+    y_val: np.ndarray | None = None,
 ) -> Any:  # xgboost.XGBClassifier — avoid hard import for type stubs
     import xgboost as xgb
 
     cfg = params["training"]["xgb"]
-    n_pos = float((y_train == 1).sum())
-    n_neg = float((y_train == 0).sum())
-    scale_pos_weight = n_neg / n_pos if n_pos > 0 else 1.0
+    if "scale_pos_weight" in cfg:
+        scale_pos_weight = float(cfg["scale_pos_weight"])
+    else:
+        n_pos = float((y_train == 1).sum())
+        n_neg = float((y_train == 0).sum())
+        scale_pos_weight = n_neg / n_pos if n_pos > 0 else 1.0
 
-    model = xgb.XGBClassifier(
-        n_estimators=int(cfg.get("n_estimators", 500)),
-        max_depth=int(cfg.get("max_depth", 6)),
-        learning_rate=float(cfg.get("learning_rate", 0.05)),
-        scale_pos_weight=scale_pos_weight,
-        random_state=seed,
-        n_jobs=-1,
-        eval_metric="logloss",
-        tree_method="hist",
-    )
-    model.fit(X_train, y_train)
+    early_stopping_rounds = int(params["training"].get("early_stopping_rounds", 50))
+
+    xgb_kwargs: dict[str, Any] = {
+        "n_estimators": int(cfg.get("n_estimators", 500)),
+        "max_depth": int(cfg.get("max_depth", 6)),
+        "learning_rate": float(cfg.get("learning_rate", 0.05)),
+        "scale_pos_weight": scale_pos_weight,
+        "random_state": seed,
+        "n_jobs": -1,
+        "eval_metric": "aucpr",
+        "tree_method": "hist",
+    }
+
+    # Add optional tuned hyperparams if present in cfg
+    for opt_key in ("subsample", "colsample_bytree", "min_child_weight", "gamma", "reg_alpha", "reg_lambda"):
+        if opt_key in cfg:
+            xgb_kwargs[opt_key] = type(cfg[opt_key])(cfg[opt_key])
+
+    if X_val is not None and y_val is not None:
+        xgb_kwargs["early_stopping_rounds"] = early_stopping_rounds
+
+    model = xgb.XGBClassifier(**xgb_kwargs)
+
+    if X_val is not None and y_val is not None:
+        model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+    else:
+        model.fit(X_train, y_train)
+
     return model
 
 
@@ -320,10 +348,21 @@ def setup_mlflow(experiment_name: str) -> None:
 
 
 def predict_proba(model: Any, X: pd.DataFrame) -> np.ndarray:
+    import xgboost as xgb
+    if isinstance(model, xgb.Booster):
+        dtest = xgb.DMatrix(X)
+        return model.predict(dtest)
     if hasattr(model, "predict_proba"):
         return model.predict_proba(X)[:, 1]
     if hasattr(model, "decision_function"):
         return model.decision_function(X)
+    if hasattr(model, "predict"):
+        preds = model.predict(X)
+        if isinstance(preds, pd.DataFrame):
+            preds = preds.to_numpy()
+        if hasattr(preds, "ndim") and preds.ndim == 2 and preds.shape[1] == 2:
+            return preds[:, 1]
+        return np.asarray(preds, dtype=float)
     raise RuntimeError(f"Model {type(model).__name__} has no predict_proba")
 
 
@@ -356,7 +395,7 @@ def log_run(
         mlflow.log_param("train_pos_count", n_pos)
         mlflow.log_param("train_neg_count", n_neg)
         mlflow.log_param("feature_count", int(len(feature_names)))
-        if n_pos > 0:
+        if "scale_pos_weight" not in model_params and n_pos > 0:
             mlflow.log_param("scale_pos_weight", round(n_neg / n_pos, 6))
 
         # ── Metrics ──
@@ -534,16 +573,12 @@ def run() -> None:
 
     # ── 2. XGBoost ──
     log.info("training_xgboost")
-    xgb_model = train_xgboost(X_train, y_train, seed, params)
+    xgb_model = train_xgboost(X_train, y_train, seed, params, X_val=X_val, y_val=y_val)
     xgb_id = log_run(
         run_name="xgboost",
         model_type="xgboost",
         model=xgb_model,
-        model_params={
-            "n_estimators": params["training"]["xgb"]["n_estimators"],
-            "max_depth": params["training"]["xgb"]["max_depth"],
-            "learning_rate": params["training"]["xgb"]["learning_rate"],
-        },
+        model_params=dict(params["training"]["xgb"]),
         X_train=X_train,
         y_train=y_train,
         X_val=X_val,

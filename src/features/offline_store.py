@@ -84,10 +84,16 @@ def _resolve_output_paths(params: dict) -> dict[str, Path]:
 
 
 def _coerce_card1_to_int(df: pd.DataFrame, card_col: str) -> pd.DataFrame:
-    """Coerce card1 to int64 (IEEE-CIS loads it as float when nulls exist)."""
-    if card_col in df.columns and df[card_col].dtype != "int64":
+    """Assign unique missing identifiers per row for missing/null card1 to prevent velocity pooling."""
+    if card_col in df.columns:
         df = df.copy()
-        df[card_col] = df[card_col].fillna(-1).astype("int64")
+        mask = df[card_col].isna() | (df[card_col] == -1) | (df[card_col] == 0)
+        if mask.any():
+            s = df[card_col].astype(object)
+            missing_indices = np.where(mask)[0]
+            unique_missing = [f"__missing_{i}" for i in range(len(missing_indices))]
+            s.iloc[missing_indices] = unique_missing
+            df[card_col] = s
     return df
 
 

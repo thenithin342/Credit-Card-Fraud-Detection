@@ -1,20 +1,14 @@
-"""
-src/ingestion/split.py
+"""src/evaluation/evaluate.py
 ────────────────────────────────────────────────────────────────────────
-Ingestion entrypoint for temporal train / val / test splitting.
-Imports and delegates to src.training.split.
+CLI entry point alias for evaluating trained ML models.
+Delegates directly to `src.training.evaluate.main`.
 ────────────────────────────────────────────────────────────────────────
 """
 
-from src.training.split import (
-    load_ieee,
-    load_params,
-    main,
-    save_splits,
-    split_data,
-)
+from __future__ import annotations
 
-__all__ = ["load_params", "load_ieee", "split_data", "save_splits", "main"]
+import sys
+from src.training.evaluate import main
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main() or 0)

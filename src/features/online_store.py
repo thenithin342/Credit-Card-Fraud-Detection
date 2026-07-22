@@ -41,7 +41,9 @@ from src.features.definitions import (
     _AMOUNT_ROLLING_WINDOW,
     _NUMERIC_NULL_FILL,
     _WINDOW_1H_SEC,
+    _WINDOW_24H_SEC,
     _WINDOW_5M_SEC,
+    _WINDOW_7D_SEC,
 )
 
 log = structlog.get_logger(__name__)
@@ -105,17 +107,24 @@ class OnlineFeatureStore:
         ``history`` is a chronologically-ordered list of
         ``(ts, amount)`` tuples for prior transactions of this card.
         """
-        # Drop entries outside the 1h window — anything older is
-        # irrelevant for both 1h and 5m aggregates.
+        cutoff_7d = current_ts - _WINDOW_7D_SEC
+        i7 = bisect.bisect_left(history, (cutoff_7d, -float("inf")))
+        in_7d = history[i7:]
+        amounts_7d = [a for _, a in in_7d]
+
+        cutoff_24h = current_ts - _WINDOW_24H_SEC
+        i24 = bisect.bisect_left(in_7d, (cutoff_24h, -float("inf")))
+        in_24h = in_7d[i24:]
+        amounts_24h = [a for _, a in in_24h]
+
         cutoff_1h = current_ts - _WINDOW_1H_SEC
-        i = bisect.bisect_left(history, (cutoff_1h, -float("inf")))
-        in_1h = history[i:]
+        i1 = bisect.bisect_left(in_24h, (cutoff_1h, -float("inf")))
+        in_1h = in_24h[i1:]
         amounts_1h = [a for _, a in in_1h]
 
-        # 5m aggregates are a subset of the 1h list.
         cutoff_5m = current_ts - _WINDOW_5M_SEC
-        j = bisect.bisect_left(in_1h, (cutoff_5m, -float("inf")))
-        in_5m = in_1h[j:]
+        i5 = bisect.bisect_left(in_1h, (cutoff_5m, -float("inf")))
+        in_5m = in_1h[i5:]
         amounts_5m = [a for _, a in in_5m]
 
         return {
@@ -123,6 +132,10 @@ class OnlineFeatureStore:
             "txn_amount_sum_5m": float(sum(amounts_5m)),
             "txn_count_1h": float(len(in_1h)),
             "txn_amount_sum_1h": float(sum(amounts_1h)),
+            "txn_count_24h": float(len(in_24h)),
+            "txn_amount_sum_24h": float(sum(amounts_24h)),
+            "txn_count_7d": float(len(in_7d)),
+            "txn_amount_sum_7d": float(sum(amounts_7d)),
         }
 
     @staticmethod
@@ -217,11 +230,8 @@ class OnlineFeatureStore:
         tsl = _NUMERIC_NULL_FILL if last_ts is None else float(int(ts) - last_ts)
 
         # ── Compose the new state and append the current tx to history ──
-        # Prune history to the 1h window — older entries can never
-        # contribute to txn_count_5m or txn_count_1h, so storing them
-        # is pure memory waste.  This bounds Redis key size to
-        # O(max_transactions_per_card_per_hour).
-        cutoff = int(ts) - _WINDOW_1H_SEC
+        # Prune history to the 7d window.
+        cutoff = int(ts) - _WINDOW_7D_SEC
         pruned_history = [[int(t), float(a)] for (t, a) in history if t >= cutoff]
         pruned_history.append([int(ts), float(amount)])
 
@@ -231,8 +241,12 @@ class OnlineFeatureStore:
             "txn_amount_sum_5m": aggs["txn_amount_sum_5m"],
             "txn_count_1h": aggs["txn_count_1h"],
             "txn_amount_sum_1h": aggs["txn_amount_sum_1h"],
+            "txn_count_24h": aggs["txn_count_24h"],
+            "txn_amount_sum_24h": aggs["txn_amount_sum_24h"],
+            "txn_count_7d": aggs["txn_count_7d"],
+            "txn_amount_sum_7d": aggs["txn_amount_sum_7d"],
             "time_since_last_txn": tsl,
-            # Bookkeeping for the next call — bounded to 1h window.
+            # Bookkeeping for the next call — bounded to 7d window.
             "_hist": pruned_history,
             "_last_ts": int(ts),
         }

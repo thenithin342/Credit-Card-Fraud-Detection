@@ -32,6 +32,8 @@ jobs:
             structlog python-dotenv pyyaml \
             pydantic pydantic-settings \
             matplotlib seaborn mlflow xgboost lightgbm fakeredis \
+            fastapi 'uvicorn[standard]' shap httpx \
+            prometheus-fastapi-instrumentator \
             pytest pytest-cov ruff
 
       - name: Lint with ruff

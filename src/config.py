@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     )
 
     # ── Redis (online feature store) ──────────────────────────────────────
+    use_fakeredis: bool = Field(default=True)
     redis_host: str = Field(default="localhost")
     redis_port: int = Field(default=6379)
     redis_db: int = Field(default=0)
@@ -65,7 +66,7 @@ class Settings(BaseSettings):
         )
 
     # ── MLflow ────────────────────────────────────────────────────────────
-    mlflow_tracking_uri: str = Field(default="http://localhost:5000")
+    mlflow_tracking_uri: str = Field(default="file:./mlruns")
     mlflow_model_name: str = Field(default="fraud-detector")
 
     # ── Serving API ───────────────────────────────────────────────────────

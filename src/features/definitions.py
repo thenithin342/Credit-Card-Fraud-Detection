@@ -36,8 +36,8 @@ Notes
   chronological order.  This is intentional — it matches the exact
   semantics of the online store, where at serving time we only know the
   *past* transactions for a card.
-* `time_since_last_txn` is 0 for the very first transaction a card
-  ever makes (it is the first observation in the window).
+* `time_since_last_txn` is -999.0 for the very first transaction a card
+  ever makes (it is the first observation in the window, representing a numeric null fill).
 ────────────────────────────────────────────────────────────────────────
 """
 
@@ -73,6 +73,10 @@ WINDOW_FEATURE_NAMES: Final[tuple[str, ...]] = (
     "txn_amount_sum_5m",
     "txn_count_1h",
     "txn_amount_sum_1h",
+    "txn_count_24h",
+    "txn_amount_sum_24h",
+    "txn_count_7d",
+    "txn_amount_sum_7d",
     "time_since_last_txn",
 )
 
@@ -85,6 +89,8 @@ _NUMERIC_NULL_FILL: Final[float] = -999.0
 # Trailing window sizes in seconds, matching params.yaml `features.window_minutes`.
 _WINDOW_5M_SEC: Final[int] = 5 * 60
 _WINDOW_1H_SEC: Final[int] = 60 * 60
+_WINDOW_24H_SEC: Final[int] = 24 * 60 * 60
+_WINDOW_7D_SEC: Final[int] = 7 * 24 * 60 * 60
 
 # Seconds in a day / week used for time-derived features.
 _SECONDS_PER_DAY: Final[int] = 86_400
@@ -179,6 +185,10 @@ def compute_window_features(
             "txn_amount_sum_5m": np.zeros(n, dtype=np.float64),
             "txn_count_1h": np.zeros(n, dtype=np.float64),
             "txn_amount_sum_1h": np.zeros(n, dtype=np.float64),
+            "txn_count_24h": np.zeros(n, dtype=np.float64),
+            "txn_amount_sum_24h": np.zeros(n, dtype=np.float64),
+            "txn_count_7d": np.zeros(n, dtype=np.float64),
+            "txn_amount_sum_7d": np.zeros(n, dtype=np.float64),
             # -999 sentinel: "no prior transactions" is meaningfully different
             # from 0 seconds (which indicates an active velocity attack).
             "time_since_last_txn": np.full(n, _NUMERIC_NULL_FILL, dtype=np.float64),
@@ -190,6 +200,13 @@ def compute_window_features(
     # order.  We track the *original* positional index so we can write
     # results back into `out` at the right place.
     work = df[[card_col, "TransactionDT", "TransactionAmt"]].copy()
+    card_s = work[card_col].astype(object)
+    null_mask = card_s.isna() | (card_s == -1) | (card_s == 0) | (card_s == "-1") | (card_s == "0") | (card_s == "missing")
+    if null_mask.any():
+        null_indices = np.where(null_mask)[0]
+        unique_missing = [f"__missing_{i}" for i in range(len(null_indices))]
+        card_s.iloc[null_indices] = unique_missing
+    work[card_col] = card_s
     work["_orig_idx"] = np.arange(n)
     work = work.sort_values([card_col, "TransactionDT"], kind="mergesort")
 
@@ -240,10 +257,22 @@ def compute_window_features(
         out.iat[orig_idx[i], 3] = float(len(hist_ts) - k)
         out.iat[orig_idx[i], 4] = float(sum(hist_amt[k:]))
 
+        # 24-hour window
+        cutoff_24h = ts - _WINDOW_24H_SEC
+        m = bisect.bisect_left(hist_ts, cutoff_24h)
+        out.iat[orig_idx[i], 5] = float(len(hist_ts) - m)
+        out.iat[orig_idx[i], 6] = float(sum(hist_amt[m:]))
+
+        # 7-day window
+        cutoff_7d = ts - _WINDOW_7D_SEC
+        p = bisect.bisect_left(hist_ts, cutoff_7d)
+        out.iat[orig_idx[i], 7] = float(len(hist_ts) - p)
+        out.iat[orig_idx[i], 8] = float(sum(hist_amt[p:]))
+
         # ── time_since_last_txn (seconds since previous tx for this card) ──
         if hist_ts:
-            out.iat[orig_idx[i], 5] = float(ts - hist_ts[-1])
-        # else: leave at 0.0 (first transaction for this card)
+            out.iat[orig_idx[i], 9] = float(ts - hist_ts[-1])
+        # else: leave at -999.0 (first transaction for this card)
 
         # Append current transaction to history.
         hist_ts.append(ts)

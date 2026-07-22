@@ -7,11 +7,18 @@ Shared pytest fixtures and configuration for the FraudGuard test suite.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
 import pandas as pd
 import pytest
+
+# Allow MLflow to use the local file-based tracking store (./mlruns).
+# MLflow 3.x requires this explicit opt-in for file-store backends.
+os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")
+# Use fakeredis for all tests so no real Redis server is needed.
+os.environ.setdefault("USE_FAKEREDIS", "true")
 
 # Ensure the project root is on sys.path so `src.*` imports work
 PROJECT_ROOT = Path(__file__).resolve().parent.parent

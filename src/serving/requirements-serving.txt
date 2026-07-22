@@ -1,0 +1,16 @@
+# FraudGuard — Phase 3 Serving Requirements
+# Install with: pip install -r src/serving/requirements-serving.txt
+# (these are already covered by the root requirements.txt; this file
+#  is provided for environments that want to deploy ONLY the API.)
+
+fastapi==0.111.*
+uvicorn[standard]==0.29.*
+shap==0.45.*
+prometheus-fastapi-instrumentator==7.*
+redis
+mlflow
+xgboost
+pandas
+pydantic
+scikit-learn
+pyyaml

@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import pickle
 from pathlib import Path
+from typing import Final
 
 import numpy as np
 import pandas as pd
@@ -39,6 +40,23 @@ import structlog
 from sklearn.preprocessing import OrdinalEncoder
 
 log = structlog.get_logger(__name__)
+
+# Explicit list of known categorical columns in IEEE-CIS / FraudGuard
+CATEGORICAL_COLS: Final[set[str]] = {
+    "ProductCD",
+    "card1",
+    "card2",
+    "card3",
+    "card4",
+    "card5",
+    "card6",
+    "addr1",
+    "addr2",
+    "P_emaildomain",
+    "R_emaildomain",
+    "DeviceType",
+    "DeviceInfo",
+} | {f"M{i}" for i in range(1, 10)} | {f"id_{i}" for i in range(12, 39)}
 
 # Numeric nulls are replaced with a value XGBoost / LightGBM treat
 # as a valid split boundary.  ``-999`` is far from any plausible
@@ -54,14 +72,38 @@ CATEGORICAL_NULL_FILL: str = "missing"
 _UNKNOWN_VALUE: int = -1
 
 
+def _normalize_cat_series(s: pd.Series) -> pd.Series:
+    """Normalize categorical values to strings consistently across int, float, str, and nulls."""
+    if pd.api.types.is_float_dtype(s):
+        valid_mask = s.notna()
+        is_int_mask = valid_mask & (s % 1 == 0)
+        str_s = pd.Series(CATEGORICAL_NULL_FILL, index=s.index, dtype=object)
+        str_s.loc[is_int_mask] = s.loc[is_int_mask].astype(np.int64).astype(str)
+        str_s.loc[valid_mask & ~is_int_mask] = s.loc[valid_mask & ~is_int_mask].astype(str)
+        return str_s
+    elif pd.api.types.is_integer_dtype(s):
+        valid_mask = s.notna()
+        str_s = pd.Series(CATEGORICAL_NULL_FILL, index=s.index, dtype=object)
+        str_s.loc[valid_mask] = s.loc[valid_mask].astype(np.int64).astype(str)
+        return str_s
+    else:
+        s_obj = s.astype(object).fillna(CATEGORICAL_NULL_FILL)
+        str_s = s_obj.astype(str)
+        has_dot_zero = str_s.str.endswith(".0")
+        if has_dot_zero.any():
+            str_s.loc[has_dot_zero] = str_s.loc[has_dot_zero].str[:-2]
+        return str_s
+
+
 class FeaturePreprocessor:
     """Fit on train, apply consistently to val / test / online.
 
     The class stores:
-        * ``numeric_cols_``  â€” list of column names treated as numeric
-        * ``categorical_cols_`` â€” list of column names treated as categorical
-        * ``encoder_`` â€” fitted ``OrdinalEncoder`` for the categoricals
-        * ``numeric_fill_`` â€” value used to fill numeric nulls (default -999)
+        * ``numeric_cols_``  — list of column names treated as numeric
+        * ``categorical_cols_`` — list of column names treated as categorical
+        * ``encoder_`` — fitted ``OrdinalEncoder`` for the categoricals
+        * ``freq_maps_`` — dictionary mapping cat columns to their frequencies
+        * ``numeric_fill_`` — value used to fill numeric nulls (default -999)
 
     Pickling this object preserves all of the above so that the
     serving path can call ``transform`` without re-fitting.
@@ -71,13 +113,14 @@ class FeaturePreprocessor:
         self.numeric_cols_: list[str] = []
         self.categorical_cols_: list[str] = []
         self.encoder_: OrdinalEncoder | None = None
+        self.freq_maps_: dict[str, dict[str, float]] = {}
         self.numeric_fill_: float = NUMERIC_NULL_FILL
         self._is_fitted: bool = False
 
-    # â”€â”€ Fit / transform API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Fit / transform API ─────────────────────────────────────────────────
 
     def fit(self, df: pd.DataFrame, feature_cols: list[str]) -> FeaturePreprocessor:
-        """Identify numeric vs categorical columns and fit the encoder.
+        """Identify numeric vs categorical columns and fit the encoder + frequency maps.
 
         Parameters
         ----------
@@ -97,10 +140,13 @@ class FeaturePreprocessor:
         if missing:
             raise KeyError(f"Columns missing from training frame: {missing[:5]}")
 
-        # Split by dtype.  Anything that is not numeric is treated as
-        # categorical and will be OrdinalEncoded.
-        self.numeric_cols_ = [c for c in feature_cols if pd.api.types.is_numeric_dtype(df[c])]
-        self.categorical_cols_ = [c for c in feature_cols if c not in self.numeric_cols_]
+        # Split features into categorical vs numeric.
+        # Any column explicitly in CATEGORICAL_COLS or with non-numeric dtype is categorical.
+        self.categorical_cols_ = [
+            c for c in feature_cols
+            if (c in CATEGORICAL_COLS or not pd.api.types.is_numeric_dtype(df[c]))
+        ]
+        self.numeric_cols_ = [c for c in feature_cols if c not in self.categorical_cols_]
 
         log.info(
             "preprocessor_fit",
@@ -108,30 +154,24 @@ class FeaturePreprocessor:
             n_categorical=len(self.categorical_cols_),
         )
 
+        self.freq_maps_ = {}
         if self.categorical_cols_:
-            # OrdinalEncoder expects a 2D array.  Fill nulls with the
-            # sentinel string first so it sees a clean object dtype.
-            cat_data = df[self.categorical_cols_].astype(object).fillna(CATEGORICAL_NULL_FILL)
-            # Convert all values to str to keep the encoder consistent
-            # (mixed int/str in the same column would surprise the
-            # encoder at transform time).
-            cat_data = cat_data.astype(str)
+            cat_dict = {col: _normalize_cat_series(df[col]) for col in self.categorical_cols_}
+            cat_data = pd.DataFrame(cat_dict, index=df.index)
+
+            for col in self.categorical_cols_:
+                counts = cat_data[col].value_counts(normalize=True)
+                self.freq_maps_[col] = counts.to_dict()
+
             self.encoder_ = OrdinalEncoder(
                 handle_unknown="use_encoded_value",
                 unknown_value=_UNKNOWN_VALUE,
                 dtype=np.int64,
             )
-            # Augment with a synthetic "missing" row so that nulls at
-            # transform time map to a known bucket (their own encoded
-            # value) rather than the unknown_value (-1).  This matters
-            # when train happens to have zero nulls in a categorical
-            # column â€” without this hack those nulls in val/test
-            # would all collide with truly-unseen categories.
             n_cat = len(self.categorical_cols_)
             missing_row = np.full((1, n_cat), CATEGORICAL_NULL_FILL, dtype=object)
             augmented = np.vstack([cat_data.to_numpy(), missing_row])
             self.encoder_.fit(augmented)
-            # Quick log: how many categories per column.
             try:
                 cats_per_col = [int(len(c)) for c in self.encoder_.categories_]
             except Exception:
@@ -147,11 +187,8 @@ class FeaturePreprocessor:
         """Apply the fitted preprocessing to a DataFrame.
 
         The output is a *new* DataFrame with the same index as the
-        input and exactly the columns the preprocessor was fit on,
-        in the order they were provided to ``fit``.  Columns that
-        were not seen at fit time are silently dropped (this is the
-        intended behaviour â€” they should have been filtered out by
-        `select_features` upstream).
+        input and columns the preprocessor was fit on (including frequency-encoded
+        categorical features), in a stable order.
 
         Parameters
         ----------
@@ -177,24 +214,39 @@ class FeaturePreprocessor:
             num_frame = df[present_num].astype(np.float64).fillna(self.numeric_fill_)
             out = pd.concat([out, num_frame], axis=1)
 
-        # Categorical path: fill nulls with sentinel, then ordinal-encode.
+        # Categorical path: fill nulls with sentinel, ordinal-encode + frequency-encode
         if self.categorical_cols_ and self.encoder_ is not None:
             present_cats = [c for c in self.categorical_cols_ if c in df.columns]
             if present_cats:
-                cat_data = df[present_cats].astype(object).fillna(CATEGORICAL_NULL_FILL).astype(str)
+                cat_dict = {col: _normalize_cat_series(df[col]) for col in present_cats}
+                cat_data = pd.DataFrame(cat_dict, index=df.index)
+
                 encoded = self.encoder_.transform(cat_data.to_numpy())
-                # Use pd.concat to avoid per-column DataFrame fragmentation.
                 cat_frame = pd.DataFrame(
                     encoded.astype(np.int64),
                     columns=present_cats,
                     index=df.index,
                 )
-                out = pd.concat([out, cat_frame], axis=1)
+                freq_dict = {}
+                for col in present_cats:
+                    freq_map = self.freq_maps_.get(col, {})
+                    freq_dict[f"{col}_freq"] = (
+                        cat_data[col].map(freq_map).fillna(0.0).astype(np.float64)
+                    )
+                freq_frame = pd.DataFrame(freq_dict, index=df.index)
+                out = pd.concat([out, cat_frame, freq_frame], axis=1)
 
         # Re-order columns to the fit-time order so the consumer
         # always sees a stable column layout.  Columns not in the
         # fit set are dropped here.
-        ordered = [c for c in (self.numeric_cols_ + self.categorical_cols_) if c in out.columns]
+        ordered_cat_cols = []
+        for col in self.categorical_cols_:
+            if col in out.columns:
+                ordered_cat_cols.append(col)
+            freq_col = f"{col}_freq"
+            if freq_col in out.columns:
+                ordered_cat_cols.append(freq_col)
+        ordered = [c for c in (self.numeric_cols_ + ordered_cat_cols) if c in out.columns]
         return out[ordered]
 
     def fit_transform(self, df: pd.DataFrame, feature_cols: list[str]) -> pd.DataFrame:

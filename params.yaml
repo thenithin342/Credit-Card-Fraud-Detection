@@ -1,70 +1,72 @@
-# FraudGuard - Global Parameters
-# All pipeline stages read from this file via ${params:...} in dvc.yaml
-
-# Dataset Paths (relative to project root)
 data:
   raw_dir: data/raw
   processed_dir: data/processed
   features_dir: data/features
-
-  # IEEE-CIS primary dataset files (after Kaggle download)
   ieee_train_transactions: data/raw/ieee-cis/train_transaction.csv
-  ieee_train_identity:     data/raw/ieee-cis/train_identity.csv
-  ieee_test_transactions:  data/raw/ieee-cis/test_transaction.csv
-  ieee_test_identity:      data/raw/ieee-cis/test_identity.csv
-
-  # ULB (secondary - used for drift simulation)
+  ieee_train_identity: data/raw/ieee-cis/train_identity.csv
+  ieee_test_transactions: data/raw/ieee-cis/test_transaction.csv
+  ieee_test_identity: data/raw/ieee-cis/test_identity.csv
   ulb_csv: data/raw/ulb/creditcard.csv
-
-# Split Configuration
 split:
-  test_size: 0.20         # 20% held out for final evaluation
-  val_size:  0.10         # 10% of train for validation / early stopping
+  test_size: 0.2
+  val_size: 0.1
   random_seed: 42
-  stratify: true          # stratify on isFraud label
-
-# Validation Thresholds (Great Expectations)
+  stratify: true
 validation:
-  max_null_rate: 0.50
+  max_null_rate: 0.5
   min_positive_rate: 0.001
   max_positive_rate: 0.05
   expected_ieee_row_count_min: 500000
-  expected_ulb_row_count_min:  280000
-
-# Feature Engineering
+  expected_ulb_row_count_min: 280000
 features:
-  velocity_windows_hours: [1, 6, 24, 168]
-  spend_agg_functions: ["mean", "std", "max", "count"]
-  cyclical_features: ["hour_of_day", "day_of_week"]
-  card_id_col: "card1"
-  target_col: "isFraud"
-
-  # Phase 2 additions
+  velocity_windows_hours:
+  - 1
+  - 6
+  - 24
+  - 168
+  spend_agg_functions:
+  - mean
+  - std
+  - max
+  - count
+  cyclical_features:
+  - hour_of_day
+  - day_of_week
+  card_id_col: card1
+  target_col: isFraud
   card_col: card1
-  window_minutes: [5, 60]
+  window_minutes:
+  - 5
+  - 60
   rolling_amount_window: 20
   numeric_null_fill: -999
-
-  # Phase 2B - raw-column selection and encoding thresholds (fit on train only)
-  null_drop_threshold: 0.80
+  null_drop_threshold: 0.8
   variance_threshold: 0.01
   correlation_threshold: 0.95
   encoder_path: models/encoders/feature_preprocessor.pkl
   feature_columns_path: models/feature_columns.json
-
-# Training
 training:
-  models: ["xgboost", "lightgbm", "logistic_regression"]
-  primary_model: "xgboost"
-  imbalance_strategy: "scale_pos_weight"
+  models:
+  - xgboost
+  - lightgbm
+  - logistic_regression
+  primary_model: xgboost
+  imbalance_strategy: scale_pos_weight
   early_stopping_rounds: 50
   n_jobs: -1
   random_seed: 42
-  mlflow_experiment: "fraud-detection-phase2"
+  mlflow_experiment: fraud-detection-phase2
   xgb:
     n_estimators: 500
     max_depth: 6
     learning_rate: 0.05
+    subsample: 0.8
+    colsample_bytree: 0.8
+    min_child_weight: 5
+    scale_pos_weight: 4.0
+    gamma: 1.0
+    reg_alpha: 1.0
+    reg_lambda: 1.0
   lgbm:
     n_estimators: 500
     max_depth: 6
@@ -72,38 +74,32 @@ training:
   logreg:
     max_iter: 1000
     C: 1.0
-
-# Optuna Tuning
 tuning:
   n_trials: 50
   timeout_seconds: 3600
-  metric: "average_precision"
-  direction: "maximize"
-  pruner: "MedianPruner"
-
-# Evaluation and Promotion Gate
+  metric: average_precision
+  direction: maximize
+  pruner: MedianPruner
 evaluation:
-  primary_metric: "average_precision"
-  promotion_threshold: 0.70
+  primary_metric: average_precision
+  promotion_threshold: 0.7
   operating_fpr: 0.01
   fn_cost: 10.0
   fp_cost: 1.0
-
-# Monitoring and Drift
 monitoring:
-  drift_score_threshold: 0.20
+  drift_score_threshold: 0.2
   reference_window_days: 30
   report_output_dir: reports/evidently
-
-# Serving
 serving:
-  host: "0.0.0.0"
+  host: 0.0.0.0
   port: 8000
-  mlflow_tracking_uri: "http://localhost:5000"
-  mlflow_model_name: "fraudguard-xgboost"
-  mlflow_model_stage: "Production"
-  redis_host: "localhost"
+  mlflow_tracking_uri: file:./mlruns
+  mlflow_model_name: fraudguard-xgboost
+  mlflow_model_stage: Production
+  use_fakeredis: true
+  redis_host: localhost
   redis_port: 6379
-  feast_repo_path: "src/features/feast_repo"
+  feast_repo_path: src/features/feast_repo
   shap_top_k: 10
   latency_sla_ms: 100
+  threshold: 0.5

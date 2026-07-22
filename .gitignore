@@ -77,3 +77,13 @@ temp/
 .ruff_cache/
 .qodo/
 .mypy_cache/
+
+# ── Agent orchestration (dev only) ───────────────────────────────
+.agents/
+
+# ── Generated training run reports (tracked by MLflow) ───────────
+reports/training/
+
+# ── Temp scripts ─────────────────────────────────────────────────
+run_remediation.py
+pytest_results.txt

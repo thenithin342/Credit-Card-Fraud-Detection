@@ -179,17 +179,15 @@ class TestULBSchema:
 
 def test_ge_suite_ieee_passes(ieee_df):
     """Run the full GE suite programmatically — must pass."""
-    from src.validation.ge_suite import build_ieee_suite, run_validation
+    from src.validation.ge_suite import validate_ieee
 
-    suite, batch_def, context = build_ieee_suite(ieee_df, val_cfg)
-    passed = run_validation("ieee_cis_test", ieee_df, suite, batch_def, context)
+    passed = validate_ieee(ieee_df, val_cfg)
     assert passed, "Great Expectations suite for IEEE-CIS failed"
 
 
 def test_ge_suite_ulb_passes(ulb_df):
     """Run the full GE suite for ULB — must pass."""
-    from src.validation.ge_suite import build_ulb_suite, run_validation
+    from src.validation.ge_suite import validate_ulb
 
-    suite, batch_def, context = build_ulb_suite(ulb_df, val_cfg)
-    passed = run_validation("ulb_test", ulb_df, suite, batch_def, context)
+    passed = validate_ulb(ulb_df, val_cfg)
     assert passed, "Great Expectations suite for ULB failed"
