@@ -27,14 +27,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install --prefer-binary \
-            numpy pandas scikit-learn pyarrow \
-            structlog python-dotenv pyyaml \
-            pydantic pydantic-settings \
-            matplotlib seaborn mlflow xgboost lightgbm fakeredis \
-            fastapi 'uvicorn[standard]' shap httpx \
-            prometheus-fastapi-instrumentator \
-            pytest pytest-cov ruff
+          pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Lint with ruff
         run: ruff check src/ tests/
@@ -42,8 +35,18 @@ jobs:
       - name: Format check with ruff
         run: ruff format --check src/ tests/
 
-      - name: Run unit tests (no real data required)
-        run: pytest tests/unit/ -v --tb=short -m "not integration" --ignore=tests/data_validation --cov=src --cov-report=html
+      - name: Configure DagsHub & Pull Data
+        env:
+          DAGSHUB_USER: ${{ secrets.DAGSHUB_USER }}
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+        run: |
+          dvc remote modify origin --local auth basic
+          dvc remote modify origin --local user $DAGSHUB_USER
+          dvc remote modify origin --local password $DAGSHUB_TOKEN
+          dvc pull -f -r origin
+
+      - name: Run unit tests (including integration)
+        run: pytest tests/unit/ -v --tb=short --ignore=tests/data_validation --cov=src --cov-report=html
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
