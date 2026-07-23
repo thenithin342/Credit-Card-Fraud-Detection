@@ -113,6 +113,9 @@ strict = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --tb=short"
+markers = [
+    "integration: marks tests as integration (requires real data, skip in CI with '-m \"not integration\"')",
+]
 
 [tool.coverage.run]
 source = ["src"]

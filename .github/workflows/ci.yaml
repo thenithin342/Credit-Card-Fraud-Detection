@@ -43,7 +43,7 @@ jobs:
         run: ruff format --check src/ tests/
 
       - name: Run unit tests (no real data required)
-        run: pytest tests/unit/ -v --tb=short --ignore=tests/data_validation
+        run: pytest tests/unit/ -v --tb=short -m "not integration" --ignore=tests/data_validation --cov=src --cov-report=html
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
