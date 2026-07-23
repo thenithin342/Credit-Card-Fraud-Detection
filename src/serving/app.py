@@ -159,6 +159,7 @@ async def lifespan(app: FastAPI):
         try:
             import numpy as np
             import pandas as pd
+
             explainer = get_explainer(bundle.model)
             dummy_X = pd.DataFrame(
                 np.zeros((1, len(bundle.feature_columns))), columns=bundle.feature_columns

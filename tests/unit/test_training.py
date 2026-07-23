@@ -171,4 +171,3 @@ def test_full_training_and_evaluation_pipeline() -> None:
     # which achieves ~0.50 PR-AUC. The Optuna-tuned champion (PR-AUC=0.814) is
     # validated separately via reports/evaluation/test_metrics.json.
     assert metrics["pr_auc"] > 0.45, f"Test pr_auc {metrics['pr_auc']} is not > 0.45"
-

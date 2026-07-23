@@ -201,7 +201,14 @@ def compute_window_features(
     # results back into `out` at the right place.
     work = df[[card_col, "TransactionDT", "TransactionAmt"]].copy()
     card_s = work[card_col].astype(object)
-    null_mask = card_s.isna() | (card_s == -1) | (card_s == 0) | (card_s == "-1") | (card_s == "0") | (card_s == "missing")
+    null_mask = (
+        card_s.isna()
+        | (card_s == -1)
+        | (card_s == 0)
+        | (card_s == "-1")
+        | (card_s == "0")
+        | (card_s == "missing")
+    )
     if null_mask.any():
         null_indices = np.where(null_mask)[0]
         unique_missing = [f"__missing_{i}" for i in range(len(null_indices))]

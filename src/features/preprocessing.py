@@ -42,21 +42,25 @@ from sklearn.preprocessing import OrdinalEncoder
 log = structlog.get_logger(__name__)
 
 # Explicit list of known categorical columns in IEEE-CIS / FraudGuard
-CATEGORICAL_COLS: Final[set[str]] = {
-    "ProductCD",
-    "card1",
-    "card2",
-    "card3",
-    "card4",
-    "card5",
-    "card6",
-    "addr1",
-    "addr2",
-    "P_emaildomain",
-    "R_emaildomain",
-    "DeviceType",
-    "DeviceInfo",
-} | {f"M{i}" for i in range(1, 10)} | {f"id_{i}" for i in range(12, 39)}
+CATEGORICAL_COLS: Final[set[str]] = (
+    {
+        "ProductCD",
+        "card1",
+        "card2",
+        "card3",
+        "card4",
+        "card5",
+        "card6",
+        "addr1",
+        "addr2",
+        "P_emaildomain",
+        "R_emaildomain",
+        "DeviceType",
+        "DeviceInfo",
+    }
+    | {f"M{i}" for i in range(1, 10)}
+    | {f"id_{i}" for i in range(12, 39)}
+)
 
 # Numeric nulls are replaced with a value XGBoost / LightGBM treat
 # as a valid split boundary.  ``-999`` is far from any plausible
@@ -143,7 +147,8 @@ class FeaturePreprocessor:
         # Split features into categorical vs numeric.
         # Any column explicitly in CATEGORICAL_COLS or with non-numeric dtype is categorical.
         self.categorical_cols_ = [
-            c for c in feature_cols
+            c
+            for c in feature_cols
             if (c in CATEGORICAL_COLS or not pd.api.types.is_numeric_dtype(df[c]))
         ]
         self.numeric_cols_ = [c for c in feature_cols if c not in self.categorical_cols_]

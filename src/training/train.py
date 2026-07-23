@@ -304,7 +304,14 @@ def train_xgboost(
     }
 
     # Add optional tuned hyperparams if present in cfg
-    for opt_key in ("subsample", "colsample_bytree", "min_child_weight", "gamma", "reg_alpha", "reg_lambda"):
+    for opt_key in (
+        "subsample",
+        "colsample_bytree",
+        "min_child_weight",
+        "gamma",
+        "reg_alpha",
+        "reg_lambda",
+    ):
         if opt_key in cfg:
             xgb_kwargs[opt_key] = type(cfg[opt_key])(cfg[opt_key])
 
@@ -349,6 +356,7 @@ def setup_mlflow(experiment_name: str) -> None:
 
 def predict_proba(model: Any, X: pd.DataFrame) -> np.ndarray:
     import xgboost as xgb
+
     if isinstance(model, xgb.Booster):
         dtest = xgb.DMatrix(X)
         return model.predict(dtest)

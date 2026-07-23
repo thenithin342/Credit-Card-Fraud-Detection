@@ -73,5 +73,3 @@ class ScoreResponse(BaseModel):
     top_features: list[TopFeature]
     latency_ms: float
     model_version: str
-
-

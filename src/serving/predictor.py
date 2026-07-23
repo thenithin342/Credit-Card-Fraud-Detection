@@ -231,6 +231,7 @@ def score_transaction(
     X = _align_to_model_columns(preprocessed, temporal, bundle.feature_columns)
 
     import xgboost as xgb
+
     if isinstance(bundle.model, xgb.Booster):
         dtest = xgb.DMatrix(X)
         proba = float(bundle.model.predict(dtest)[0])
