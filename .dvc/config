@@ -1,0 +1,5 @@
+[core]
+    remote = origin
+['remote "origin"']
+    url = https://dagshub.com/thenithin342/Credit-Card-Fraud-Detection.dvc
+    auth = basic
