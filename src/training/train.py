@@ -43,18 +43,13 @@ from typing import Any
 import matplotlib
 
 matplotlib.use("Agg")  # headless backend — no DISPLAY required
-import lightgbm as _lgb
 import matplotlib.pyplot as plt
 import mlflow
-import mlflow.lightgbm
-import mlflow.pyfunc
 import mlflow.sklearn
-import mlflow.xgboost
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import structlog
-import xgboost as _xgb
 import yaml
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
