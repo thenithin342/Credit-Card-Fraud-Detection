@@ -1,11 +1,8 @@
-vars:
-  - python: '.venv\Scripts\python'
-
 stages:
 
   # Stage 1: ingest
   ingest:
-    cmd: .venv\Scripts\python -m src.ingestion.download
+    cmd: python -m src.ingestion.download
     params:
       - data.raw_dir
     outs:
@@ -14,7 +11,7 @@ stages:
 
   # Stage 2: validate
   validate:
-    cmd: .venv\Scripts\python -m src.validation.ge_suite
+    cmd: python -m src.validation.ge_suite
     deps:
       - data/raw/ieee-cis
       - data/raw/ulb
@@ -27,7 +24,7 @@ stages:
 
   # Stage 3: split
   split:
-    cmd: .venv\Scripts\python -m src.ingestion.split
+    cmd: python -m src.ingestion.split
     deps:
       - data/raw/ieee-cis
       - src/ingestion/split.py
@@ -40,9 +37,9 @@ stages:
       - data/processed/val.parquet
       - data/processed/test.parquet
 
-  # Stage 4: feature_engineer (Phase 2B)
+  # Stage 4: feature_engineer
   feature_engineer:
-    cmd: .venv\Scripts\python -m src.features.offline_store
+    cmd: python -m src.features.offline_store
     deps:
       - src/features/definitions.py
       - src/features/offline_store.py
@@ -62,7 +59,7 @@ stages:
 
   # Stage 5: train
   train:
-    cmd: .venv\Scripts\python -m src.training.train
+    cmd: python -m src.training.train
     deps:
       - src/training/train.py
       - data/features/train_features.parquet
@@ -73,7 +70,7 @@ stages:
 
   # Stage 6: evaluate
   evaluate:
-    cmd: .venv\Scripts\python -m src.evaluation.evaluate
+    cmd: python -m src.evaluation.evaluate
     deps:
       - src/evaluation/evaluate.py
       - data/features/test_features.parquet
