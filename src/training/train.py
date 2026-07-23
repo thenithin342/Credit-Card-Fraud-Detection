@@ -47,6 +47,7 @@ matplotlib.use("Agg")  # headless backend — no DISPLAY required
 import matplotlib.pyplot as plt
 import mlflow
 import mlflow.sklearn
+from mlflow.models import infer_signature
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -498,6 +499,8 @@ def log_run(
         mlflow.sklearn.log_model(
             model,
             artifact_path="model",
+            signature=infer_signature(X_train, predict_proba(model, X_train)),
+            input_example=X_train.iloc[[0]],
             **_sklearn_log_kwargs(),
         )
 
