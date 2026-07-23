@@ -68,6 +68,21 @@ FraudGuard is a production-ready fraud detection system built on the [IEEE-CIS F
                             │  • is_fraud decision   │
                             │  • top_5 SHAP features │
                             │  • latency_ms          │
+                            └───────────┬───────────┘
+                                        │  optional
+                                        ▼
+                            ┌───────────────────────┐
+                            │   Prediction Logs     │
+                            │  (Postgres / Parquet) │
+                            └───────────┬───────────┘
+                                        │  periodically
+                                        ▼
+                            ┌───────────────────────┐
+                            │  Drift Monitor (offline)│
+                            │  src/monitoring/       │
+                            │  drift_monitor.py      │
+                            │  Evidently AI          │
+                            │  exit 1 if drift > 0.2 │
                             └───────────────────────┘
 ```
 
@@ -131,6 +146,8 @@ fraudguard/
 │   │   └── schemas.py             # Pydantic request / response schemas
 │   └── evaluation/
 │       └── evaluate.py            # Standalone evaluation script
+│   └── monitoring/
+│       └── drift_monitor.py       # Offline Evidently AI drift batch job
 ├── tests/
 │   ├── conftest.py                # Shared fixtures + env configuration
 │   └── unit/
@@ -290,6 +307,67 @@ Score a single transaction. Returns probability, decision, and top SHAP attribut
 
 ### `GET /metrics`
 Prometheus exposition endpoint. Exposes request latency histograms and counters.
+
+---
+
+## 📡 Drift Monitoring
+
+FraudGuard uses [Evidently AI](https://www.evidentlyai.com/) to detect
+distribution shift between the reference dataset (the test split used at
+training time) and a *current* window of recent scoring data.
+
+### Why offline, not inline
+
+Computing the Evidently `DataDriftPreset` on every `/v1/score` request
+would blow the 150 ms scoring SLA. The drift check therefore runs as a
+**standalone batch script** in `src/monitoring/drift_monitor.py`,
+intended for periodic execution (cron, GitHub Action, Kubernetes
+CronJob).
+
+### Running the monitor
+
+```bash
+# Self-check against the test split (no current window yet):
+python -m src.monitoring.drift_monitor
+
+# Real production check, once a recent scoring window is captured:
+python -m src.monitoring.drift_monitor --current reports/scoring/2026-07-23.parquet
+```
+
+The script:
+1. Loads the reference split from `data/features/test_features.parquet`.
+2. Runs an Evidently `DataDriftPreset` Report.
+3. Writes a JSON summary to `reports/evidently/drift_<UTC-timestamp>.json`.
+4. **Exits with code 1** if the drift share exceeds
+   `params.yaml:monitoring.drift_score_threshold` (default `0.2`) so
+   the scheduler can alert (e.g. via PagerDuty / Slack webhook).
+
+### Scheduling
+
+```yaml
+# .github/workflows/drift.yml (excerpt)
+on:
+  schedule:
+    - cron: "17 */6 * * *"   # every 6 hours
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -r requirements.txt
+      - run: python -m src.monitoring.drift_monitor
+```
+
+### Configuration
+
+All thresholds live in `params.yaml`:
+
+```yaml
+monitoring:
+  drift_score_threshold: 0.2       # exit non-zero above this
+  reference_window_days: 30
+  report_output_dir: reports/evidently
+```
 
 ---
 
