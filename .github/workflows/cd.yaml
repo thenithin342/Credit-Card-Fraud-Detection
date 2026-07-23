@@ -41,11 +41,14 @@ jobs:
       - name: Pull Data
         run: dvc pull -f -r origin
 
-      - name: Run Pipeline (Train & Evaluate)
-        # dvc pull already fetched raw/processed data.
-        # We only re-run ML stages — skip ingest/validate/split which need Kaggle credentials.
-        run: |
-          dvc repro feature_engineer train evaluate
+      - name: Feature Engineering
+        run: python -m src.features.offline_store
+
+      - name: Train Models
+        run: python -m src.training.train
+
+      - name: Evaluate Best Model
+        run: python -m src.evaluation.evaluate
 
       - name: Promote Model
         run: python -m src.training.promote
