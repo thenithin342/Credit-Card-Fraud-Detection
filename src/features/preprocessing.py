@@ -221,25 +221,27 @@ class FeaturePreprocessor:
 
         # Categorical path: fill nulls with sentinel, ordinal-encode + frequency-encode
         if self.categorical_cols_ and self.encoder_ is not None:
-            present_cats = [c for c in self.categorical_cols_ if c in df.columns]
-            if present_cats:
-                cat_dict = {col: _normalize_cat_series(df[col]) for col in present_cats}
-                cat_data = pd.DataFrame(cat_dict, index=df.index)
-
-                encoded = self.encoder_.transform(cat_data.to_numpy())
-                cat_frame = pd.DataFrame(
-                    encoded.astype(np.int64),
-                    columns=present_cats,
-                    index=df.index,
+            # Always build all categorical columns (fill missing ones with sentinel)
+            cat_dict = {
+                col: _normalize_cat_series(df[col]) if col in df.columns
+                else pd.Series(CATEGORICAL_NULL_FILL, index=df.index)
+                for col in self.categorical_cols_
+            }
+            cat_data = pd.DataFrame(cat_dict, index=df.index)
+            encoded = self.encoder_.transform(cat_data.to_numpy())
+            cat_frame = pd.DataFrame(
+                encoded.astype(np.int64),
+                columns=self.categorical_cols_,
+                index=df.index,
+            )
+            freq_dict = {}
+            for col in self.categorical_cols_:
+                freq_map = self.freq_maps_.get(col, {})
+                freq_dict[f"{col}_freq"] = (
+                    cat_data[col].map(freq_map).fillna(0.0).astype(np.float64)
                 )
-                freq_dict = {}
-                for col in present_cats:
-                    freq_map = self.freq_maps_.get(col, {})
-                    freq_dict[f"{col}_freq"] = (
-                        cat_data[col].map(freq_map).fillna(0.0).astype(np.float64)
-                    )
-                freq_frame = pd.DataFrame(freq_dict, index=df.index)
-                out = pd.concat([out, cat_frame, freq_frame], axis=1)
+            freq_frame = pd.DataFrame(freq_dict, index=df.index)
+            out = pd.concat([out, cat_frame, freq_frame], axis=1)
 
         # Re-order columns to the fit-time order so the consumer
         # always sees a stable column layout.  Columns not in the

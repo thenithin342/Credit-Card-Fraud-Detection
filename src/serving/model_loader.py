@@ -49,7 +49,7 @@ ENCODER_PATH = PROJECT_ROOT / "models" / "encoders" / "feature_preprocessor.pkl"
 FEATURE_COLUMNS_PATH = PROJECT_ROOT / "models" / "feature_columns.json"
 
 # Local file backend — no Docker dependency.
-LOCAL_MLFLOW_URI: str = "file:./mlruns"
+LOCAL_MLFLOW_URI: str = (PROJECT_ROOT / "mlruns").as_uri()
 
 # Process-wide singleton state.
 _BUNDLE: ModelBundle | None = None

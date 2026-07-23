@@ -236,7 +236,6 @@ def drop_correlated_cols(
                                 dropped.add(col_c)
                             else:
                                 dropped.add(col_r)
-                                break
 
     dropped_cols = sorted(dropped)
     if dropped_cols:

@@ -1,7 +1,10 @@
 import json
 import os
+from pathlib import Path
 
+import mlflow
 import structlog
+import yaml
 from mlflow.tracking import MlflowClient
 
 log = structlog.get_logger()
@@ -9,9 +12,20 @@ log = structlog.get_logger()
 
 def promote_model():
     """Reads test_metrics.json and promotes the model if it passes the threshold."""
+    project_root = Path(__file__).resolve().parents[2]
+    mlflow.set_tracking_uri((project_root / "mlruns").as_uri())
+
     client = MlflowClient()
     model_name = os.getenv("MODEL_NAME", "fraud-detector")
     metrics_path = "reports/evaluation/test_metrics.json"
+
+    params_path = project_root / "params.yaml"
+    threshold = 0.68
+    if params_path.exists():
+        with open(params_path, encoding="utf-8") as f:
+            params = yaml.safe_load(f) or {}
+        training_cfg = params.get("training") or {}
+        threshold = training_cfg.get("promotion_pr_auc_threshold", 0.68)
 
     if not os.path.exists(metrics_path):
         log.error("metrics_not_found", path=metrics_path)
@@ -21,8 +35,6 @@ def promote_model():
         metrics = json.load(f)
 
     pr_auc = metrics.get("pr_auc")
-    # In production, we'd pull this threshold from params.yaml. Hardcoding 0.68 for simplicity here based on gap analysis.
-    threshold = 0.68
 
     log.info("checking_promotion_criteria", current_pr_auc=pr_auc, required=threshold)
 

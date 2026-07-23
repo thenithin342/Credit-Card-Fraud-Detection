@@ -35,9 +35,6 @@ dependencies = [
     # ── Data Validation ─────────────────────────────────────────
     "great-expectations>=0.18,<1.0",
 
-    # ── Feature Store ───────────────────────────────────────────
-    "feast>=0.40,<1.0",
-
     # ── Serving ─────────────────────────────────────────────────
     "fastapi>=0.111,<1.0",
     "uvicorn[standard]>=0.29,<1.0",
@@ -47,14 +44,11 @@ dependencies = [
     "confluent-kafka>=2.4,<3.0",
 
     # ── Monitoring & Drift ──────────────────────────────────────
-    "evidently>=0.4,<1.0",
+    "evidently>=0.6,<1.0",
     "prometheus-fastapi-instrumentator>=7.0,<8.0",
 
     # ── Structured Logging ──────────────────────────────────────
     "structlog>=24.1,<25.0",
-
-    # ── Orchestration ───────────────────────────────────────────
-    "apache-airflow>=2.9,<3.0",
 
     # ── Utilities ───────────────────────────────────────────────
     "python-dotenv>=1.0,<2.0",
@@ -85,11 +79,15 @@ dev = [
     "ipykernel>=6.29,<7.0",
     "jupyterlab>=4.1,<5.0",
 ]
+orchestration = [
+    "apache-airflow>=2.9,<3.0",
+    "feast>=0.40,<1.0",
+]
 
 [project.scripts]
 fraudguard-download  = "src.ingestion.download:main"
 fraudguard-validate  = "src.validation.ge_suite:main"
-fraudguard-serve     = "src.serving.app:run"
+fraudguard-serve     = "src.serving.app:main"
 
 # ── Tool Configuration ──────────────────────────────────────────
 

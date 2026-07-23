@@ -41,8 +41,6 @@ from typing import Any
 import pandas as pd
 import structlog
 
-from src.config import get_settings
-
 log = structlog.get_logger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -99,35 +97,40 @@ def compute_drift_share(reference: pd.DataFrame, current: pd.DataFrame) -> dict[
 
 
 def summarize_drift(drift_report: dict[str, Any]) -> dict[str, Any]:
-    """Reduce the full Evidently JSON to the small set of numbers we care about."""
+    """Reduce the full Evidently JSON to the small set of numbers we care about.
+    Uses defensive extraction — Evidently's JSON schema changes between versions.
+    """
     metrics = drift_report.get("metrics", [])
-
-    drift_share: float | None = None
-    drifted_count: float | None = None
+    drift_share: float = 0.0
+    drifted_count: int = 0
     per_column: list[dict[str, Any]] = []
     for m in metrics:
-        metric_id = m.get("id", "")
-        cfg = m.get("config", {})
+        metric_name = m.get("metric_name", "") or m.get("id", "")
         value = m.get("value")
-
-        if "DriftedColumnsCount" in m.get("metric_name", ""):
+        if "DriftedColumnsCount" in metric_name:
             if isinstance(value, dict):
                 drift_share = float(value.get("share", 0.0))
-                drifted_count = float(value.get("count", 0.0))
-        elif "ValueDrift" in m.get("metric_name", ""):
-            col = cfg.get("column")
-            per_column.append(
-                {
-                    "column": col,
-                    "method": cfg.get("method"),
-                    "p_value": float(value) if value is not None else None,
-                    "drifted": bool(value is not None and value < 0.05),
-                }
-            )
-
+                drifted_count = int(value.get("count", 0))
+        elif "ValueDrift" in metric_name or "ColumnDrift" in metric_name:
+            col = m.get("config", {}).get("column") or m.get("column")
+            if col:
+                per_column.append(
+                    {
+                        "column": col,
+                        "method": m.get("config", {}).get("method"),
+                        "p_value": float(value) if isinstance(value, (int, float)) else None,
+                        "drifted": bool(isinstance(value, (int, float)) and value < 0.05),
+                    }
+                )
+    if drift_share == 0.0 and not per_column:
+        log.warning(
+            "drift_summary_empty",
+            hint="Evidently JSON schema may have changed. Check evidently version.",
+            n_metrics=len(metrics),
+        )
     return {
-        "drift_share": drift_share or 0.0,
-        "drifted_columns": int(drifted_count) if drifted_count is not None else 0,
+        "drift_share": drift_share,
+        "drifted_columns": drifted_count,
         "per_column": per_column,
     }
 
@@ -194,7 +197,6 @@ def run_monitor(
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    settings = get_settings()
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument(
         "--params",

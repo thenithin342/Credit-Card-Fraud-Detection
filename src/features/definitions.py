@@ -83,24 +83,25 @@ WINDOW_FEATURE_NAMES: Final[tuple[str, ...]] = (
 # The full ordered list of feature columns the model consumes.
 FEATURE_NAMES: Final[tuple[str, ...]] = STATIC_FEATURE_NAMES + WINDOW_FEATURE_NAMES
 
-# Sentinel used for nulls in numeric engineered columns.
-_NUMERIC_NULL_FILL: Final[float] = -999.0
+# Public names (new)
+NUMERIC_NULL_FILL: Final[float] = -999.0
+AMOUNT_ROLLING_WINDOW: Final[int] = 20
+WINDOW_5M_SEC: Final[int] = 5 * 60
+WINDOW_1H_SEC: Final[int] = 60 * 60
+WINDOW_24H_SEC: Final[int] = 24 * 60 * 60
+WINDOW_7D_SEC: Final[int] = 7 * 24 * 60 * 60
 
-# Trailing window sizes in seconds, matching params.yaml `features.window_minutes`.
-_WINDOW_5M_SEC: Final[int] = 5 * 60
-_WINDOW_1H_SEC: Final[int] = 60 * 60
-_WINDOW_24H_SEC: Final[int] = 24 * 60 * 60
-_WINDOW_7D_SEC: Final[int] = 7 * 24 * 60 * 60
+# Keep old private names as aliases so existing imports don't break
+_NUMERIC_NULL_FILL = NUMERIC_NULL_FILL
+_AMOUNT_ROLLING_WINDOW = AMOUNT_ROLLING_WINDOW
+_WINDOW_5M_SEC = WINDOW_5M_SEC
+_WINDOW_1H_SEC = WINDOW_1H_SEC
+_WINDOW_24H_SEC = WINDOW_24H_SEC
+_WINDOW_7D_SEC = WINDOW_7D_SEC
 
 # Seconds in a day / week used for time-derived features.
 _SECONDS_PER_DAY: Final[int] = 86_400
 _DAYS_PER_WEEK: Final[int] = 7
-
-# Rolling-mean / rolling-std window used to compute the card-level
-# amount_zscore.  We use a trailing window of the *previous* 20
-# transactions for the same card (fits comfortably in memory for
-# IEEE-CIS card1 which has ~12k unique cards across ~400k rows).
-_AMOUNT_ROLLING_WINDOW: Final[int] = 20
 
 
 # ── Static features (no group context) ─────────────────────────────────────

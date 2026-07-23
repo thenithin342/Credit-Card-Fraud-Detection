@@ -91,19 +91,48 @@ services:
       - fraud-net
 
   # ── Phase 3: scoring API ────────────────────────────────────────────────
-  # Uncomment once src/serving/main.py exists
-  # api:
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    container_name: fraud-api
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./mlruns:/app/mlruns:ro
+      - ./models:/app/models:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      mlflow:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - fraud-net
+
+  # ── Phase 4: stream consumer ────────────────────────────────────────────
+  # consumer:
   #   build:
   #     context: .
-  #     dockerfile: infra/docker/api.Dockerfile
-  #   container_name: fraud-api
+  #     dockerfile: infra/docker/api.Dockerfile   # reuses same base image
+  #   container_name: fraud-consumer
   #   env_file: .env
-  #   ports:
-  #     - "8000:8000"
+  #   environment:
+  #     - API_BASE_URL=http://fraud-api:8000
+  #   command: ["python", "-m", "src.ingestion.consumer", "--api-url", "http://fraud-api:8000"]
   #   depends_on:
-  #     - redis
-  #     - postgres
-  #     - mlflow
+  #     api:
+  #       condition: service_healthy
+  #     redpanda:
+  #       condition: service_healthy
   #   networks:
   #     - fraud-net
 

@@ -67,7 +67,6 @@ def test_compute_metrics_keys() -> None:
         "pr_auc",
         "roc_auc",
         "f1",
-        "avg_precision",
         "precision_at_90_recall",
         "recall_at_0.5",
         "precision_at_0.5",

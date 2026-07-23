@@ -185,7 +185,6 @@ def compute_metrics(
     pr_auc = float(average_precision_score(y_true, y_proba))
 
     roc_auc = float(roc_auc_score(y_true, y_proba))
-    avg_precision = float(average_precision_score(y_true, y_proba))
     f1 = float(f1_score(y_true, y_pred, zero_division=0))
 
     # precision at 90% recall — useful operating point for fraud:
@@ -198,7 +197,6 @@ def compute_metrics(
         "pr_auc": pr_auc,
         "roc_auc": roc_auc,
         "f1": f1,
-        "avg_precision": avg_precision,
         "precision_at_90_recall": precision_at_90_recall,
         "recall_at_0.5": recall_at_threshold,
         "precision_at_0.5": precision_at_threshold,
@@ -499,7 +497,7 @@ def log_run(
         mlflow.sklearn.log_model(
             model,
             artifact_path="model",
-            signature=infer_signature(X_train, predict_proba(model, X_train)),
+            signature=infer_signature(X_train.iloc[[0]], predict_proba(model, X_train.iloc[[0]])),
             input_example=X_train.iloc[[0]],
             **_sklearn_log_kwargs(),
         )
@@ -612,6 +610,7 @@ def run() -> None:
             "max_iter": params["training"]["logreg"]["max_iter"],
             "C": params["training"]["logreg"]["C"],
             "class_weight": "balanced",
+            "logreg_subsample_rows": 50_000 if len(X_train) > 50_000 else len(X_train),
         },
         X_train=X_train,
         y_train=y_train,

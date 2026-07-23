@@ -49,8 +49,8 @@ class TransactionRequest(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     transaction_id: int = Field(
-        default=0,
-        description="Caller-supplied transaction identifier (echoed back in the response).",
+        default=-1,
+        description="Caller-supplied transaction identifier (echoed back in the response). Use -1 if not provided.",
     )
     TransactionDT: int = Field(
         ...,

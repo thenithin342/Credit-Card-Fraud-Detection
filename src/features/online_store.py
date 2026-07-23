@@ -38,12 +38,12 @@ from typing import Any
 import structlog
 
 from src.features.definitions import (
-    _AMOUNT_ROLLING_WINDOW,
-    _NUMERIC_NULL_FILL,
-    _WINDOW_1H_SEC,
-    _WINDOW_5M_SEC,
-    _WINDOW_7D_SEC,
-    _WINDOW_24H_SEC,
+    AMOUNT_ROLLING_WINDOW,
+    NUMERIC_NULL_FILL,
+    WINDOW_5M_SEC,
+    WINDOW_1H_SEC,
+    WINDOW_24H_SEC,
+    WINDOW_7D_SEC,
 )
 
 log = structlog.get_logger(__name__)
@@ -107,22 +107,22 @@ class OnlineFeatureStore:
         ``history`` is a chronologically-ordered list of
         ``(ts, amount)`` tuples for prior transactions of this card.
         """
-        cutoff_7d = current_ts - _WINDOW_7D_SEC
+        cutoff_7d = current_ts - WINDOW_7D_SEC
         i7 = bisect.bisect_left(history, (cutoff_7d, -float("inf")))
         in_7d = history[i7:]
         amounts_7d = [a for _, a in in_7d]
 
-        cutoff_24h = current_ts - _WINDOW_24H_SEC
+        cutoff_24h = current_ts - WINDOW_24H_SEC
         i24 = bisect.bisect_left(in_7d, (cutoff_24h, -float("inf")))
         in_24h = in_7d[i24:]
         amounts_24h = [a for _, a in in_24h]
 
-        cutoff_1h = current_ts - _WINDOW_1H_SEC
+        cutoff_1h = current_ts - WINDOW_1H_SEC
         i1 = bisect.bisect_left(in_24h, (cutoff_1h, -float("inf")))
         in_1h = in_24h[i1:]
         amounts_1h = [a for _, a in in_1h]
 
-        cutoff_5m = current_ts - _WINDOW_5M_SEC
+        cutoff_5m = current_ts - WINDOW_5M_SEC
         i5 = bisect.bisect_left(in_1h, (cutoff_5m, -float("inf")))
         in_5m = in_1h[i5:]
         amounts_5m = [a for _, a in in_5m]
@@ -148,10 +148,10 @@ class OnlineFeatureStore:
         -999 sentinel if there is no prior history.
         """
         if not history:
-            return _NUMERIC_NULL_FILL
-        ref_amounts = [a for _, a in history[-_AMOUNT_ROLLING_WINDOW:]]
+            return NUMERIC_NULL_FILL
+        ref_amounts = [a for _, a in history[-AMOUNT_ROLLING_WINDOW:]]
         if not ref_amounts:
-            return _NUMERIC_NULL_FILL
+            return NUMERIC_NULL_FILL
         n = len(ref_amounts)
         mean = sum(ref_amounts) / n
         var = sum((a - mean) ** 2 for a in ref_amounts) / n
@@ -227,11 +227,11 @@ class OnlineFeatureStore:
 
         # time_since_last_txn: use the -999 sentinel when there is no
         # prior transaction — matches the offline pipeline exactly.
-        tsl = _NUMERIC_NULL_FILL if last_ts is None else float(int(ts) - last_ts)
+        tsl = NUMERIC_NULL_FILL if last_ts is None else float(int(ts) - last_ts)
 
         # ── Compose the new state and append the current tx to history ──
         # Prune history to the 7d window.
-        cutoff = int(ts) - _WINDOW_7D_SEC
+        cutoff = int(ts) - WINDOW_7D_SEC
         pruned_history = [[int(t), float(a)] for (t, a) in history if t >= cutoff]
         pruned_history.append([int(ts), float(amount)])
 

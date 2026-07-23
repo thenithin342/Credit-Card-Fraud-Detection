@@ -31,10 +31,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import structlog
+import xgboost as xgb
 
 from src.features.definitions import (
-    _NUMERIC_NULL_FILL,
     FEATURE_NAMES,
+    NUMERIC_NULL_FILL,
     WINDOW_FEATURE_NAMES,
     compute_static_features,
 )
@@ -47,10 +48,10 @@ log = structlog.get_logger(__name__)
 
 
 # Sentinel used when a card has no prior history in the online store
-# — keeps serving consistent with the offline ``_NUMERIC_NULL_FILL``
+# — keeps serving consistent with the offline ``NUMERIC_NULL_FILL``
 # convention and ensures the XGBoost model can still split on it.
 _DEFAULT_WINDOW_FALLBACK: dict[str, float] = {
-    "amount_zscore": _NUMERIC_NULL_FILL,
+    "amount_zscore": NUMERIC_NULL_FILL,
     "txn_count_5m": 0.0,
     "txn_amount_sum_5m": 0.0,
     "txn_count_1h": 0.0,
@@ -59,7 +60,7 @@ _DEFAULT_WINDOW_FALLBACK: dict[str, float] = {
     "txn_amount_sum_24h": 0.0,
     "txn_count_7d": 0.0,
     "txn_amount_sum_7d": 0.0,
-    "time_since_last_txn": _NUMERIC_NULL_FILL,
+    "time_since_last_txn": NUMERIC_NULL_FILL,
 }
 
 
@@ -229,8 +230,6 @@ def score_transaction(
 
     preprocessed = bundle.preprocessor.transform(raw)
     X = _align_to_model_columns(preprocessed, temporal, bundle.feature_columns)
-
-    import xgboost as xgb
 
     if isinstance(bundle.model, xgb.Booster):
         dtest = xgb.DMatrix(X)

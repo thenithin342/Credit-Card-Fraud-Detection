@@ -100,7 +100,8 @@ class ShapExplainer:
         # of the list, so we pick that.  Otherwise fall back to the
         # 2-D array as-is.
         if isinstance(shap_values, list):
-            sv = np.asarray(shap_values[1] if len(shap_values) == 2 else shap_values[0])
+            # For binary classifiers, the last element is always the positive class
+            sv = np.asarray(shap_values[-1])
         else:
             sv = np.asarray(shap_values)
 

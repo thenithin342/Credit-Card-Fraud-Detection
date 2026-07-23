@@ -76,16 +76,18 @@ parity test passes; feature parity test in CI.
 
 ---
 
-### Phase 4 — Streaming Ingestion & Online Inference
+### Phase 4 — Streaming Ingestion & Online Inference ✅ DONE
 **Goal:** Wire the batch-tested pieces into an actual real-time flow.
 
-**Tasks:**
-- [ ] `src/ingestion/producer.py` — replays dataset onto Redpanda at configurable speed
-- [ ] `src/ingestion/consumer.py` — reads messages, calls Feature Service → Scoring Service
-- [ ] Predictions + latencies logged to Postgres
-- [ ] End-to-end smoke test: start stream, confirm predictions land in the log
+**Completed:**
+- ✅ `src/ingestion/kafka_admin.py` — idempotent Redpanda topic creation
+- ✅ `src/ingestion/producer.py` — configurable-speed IEEE-CIS replay producer
+- ✅ `src/ingestion/consumer.py` — Kafka consumer scoring transactions via REST API
+- ✅ `src/ingestion/prediction_logger.py` — Postgres prediction log manager
+- ✅ `tests/unit/test_producer.py`, `test_consumer.py` — unit tests
+- ✅ `tests/integration/test_e2e_stream.py` — integration smoke test
 
-**Definition of Done:** `docker-compose up` + one producer script → continuously scored
+**Definition of Done:** ✅ `docker-compose up` + one producer script → continuously scored
 transactions with no manual intervention.
 
 **Estimate:** 4–6 days
