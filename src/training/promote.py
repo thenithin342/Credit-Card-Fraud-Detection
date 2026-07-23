@@ -1,7 +1,7 @@
 import json
 import os
+
 import structlog
-import mlflow
 from mlflow.tracking import MlflowClient
 
 log = structlog.get_logger()
