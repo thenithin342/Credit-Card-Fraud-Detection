@@ -125,7 +125,7 @@ def test_xgboost_smoke_runs_and_has_run_id(tiny_feature_df: pd.DataFrame) -> Non
             y_proba = predict_proba(model, X)
             metrics = compute_metrics(y, y_proba)
             mlflow.log_metrics(metrics)
-            mlflow.xgboost.log_model(model, artifact_path="model")
+            mlflow.sklearn.log_model(model, artifact_path="model")
 
         assert run_id, "MLflow run_id should not be empty"
         client = mlflow.tracking.MlflowClient()
