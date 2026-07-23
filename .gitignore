@@ -93,4 +93,8 @@ reports/training/
 
 # ── Temp scripts ─────────────────────────────────────────────────
 run_remediation.py
+strip-claude-trailer.py
+
+# ── Empty placeholder dirs ────────────────────────────────────────
+notebooks/
 pytest_results.txt
