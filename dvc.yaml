@@ -59,3 +59,26 @@ stages:
       - data/features/test_features.parquet
       - models/encoders/feature_preprocessor.pkl
       - models/feature_columns.json
+
+  # Stage 5: train
+  train:
+    cmd: .venv\Scripts\python -m src.training.train
+    deps:
+      - src/training/train.py
+      - data/features/train_features.parquet
+      - data/features/val_features.parquet
+      - models/feature_columns.json
+    params:
+      - training
+
+  # Stage 6: evaluate
+  evaluate:
+    cmd: .venv\Scripts\python -m src.evaluation.evaluate
+    deps:
+      - src/evaluation/evaluate.py
+      - data/features/test_features.parquet
+    params:
+      - evaluation
+    metrics:
+      - reports/evaluation/test_metrics.json:
+          cache: false
