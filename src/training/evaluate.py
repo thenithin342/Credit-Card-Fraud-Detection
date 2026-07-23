@@ -20,6 +20,7 @@ import sys
 from pathlib import Path
 
 import mlflow
+import mlflow.sklearn  # noqa: F401  (matches the sklearn flavour used in train.py)
 import numpy as np
 import pandas as pd
 import structlog
@@ -79,10 +80,11 @@ def evaluate(
 
     model_uri = resolve_model_uri(model_name, stage)
     log.info("loading_model", uri=model_uri)
-    try:
-        model = mlflow.xgboost.load_model(model_uri)
-    except Exception:
-        model = mlflow.pyfunc.load_model(model_uri)
+    # The artifact was logged with `mlflow.sklearn.log_model` in
+    # src/training/train.py — load it back with the matching flavour.
+    # XGBClassifier / LGBMClassifier are full sklearn-API objects, so
+    # `predict_proba` (below) Just Works.
+    model = mlflow.sklearn.load_model(model_uri)
     y_proba = predict_proba(model, X_test)
 
     metrics = compute_metrics(y_test, y_proba, threshold=threshold)

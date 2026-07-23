@@ -94,7 +94,7 @@ def test_xgboost_smoke_runs_and_has_run_id(tiny_feature_df: pd.DataFrame) -> Non
     Uses a temporary MLflow tracking directory so the test is hermetic.
     """
     import mlflow
-    import mlflow.xgboost
+    import mlflow.sklearn
     import xgboost as xgb
 
     from src.features.definitions import FEATURE_NAMES, TARGET_COL
@@ -125,16 +125,26 @@ def test_xgboost_smoke_runs_and_has_run_id(tiny_feature_df: pd.DataFrame) -> Non
             y_proba = predict_proba(model, X)
             metrics = compute_metrics(y, y_proba)
             mlflow.log_metrics(metrics)
-            mlflow.sklearn.log_model(model, artifact_path="model")
+            mlflow.sklearn.log_model(
+                model,
+                artifact_path="model",
+                skops_trusted_types=[
+                    "xgboost.sklearn.XGBClassifier",
+                    "xgboost.core.Booster",
+                    "xgboost.sklearn.XGBModel",
+                    "xgboost.sklearn.XGBRegressor",
+                ],
+            )
 
         assert run_id, "MLflow run_id should not be empty"
         client = mlflow.tracking.MlflowClient()
         logged = client.get_run(run_id).data.metrics
         assert "pr_auc" in logged
         assert logged["pr_auc"] > 0.0
-        # Model artifact should be loadable
+        # Model artifact should be loadable.  train.py logs with the
+        # sklearn flavour, so the read side must use the same flavour.
         model_uri = f"runs:/{run_id}/model"
-        reloaded = mlflow.xgboost.load_model(model_uri)
+        reloaded = mlflow.sklearn.load_model(model_uri)
         assert reloaded is not None
 
 

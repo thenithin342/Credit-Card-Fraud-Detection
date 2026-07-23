@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import Any
 
 import mlflow
-import mlflow.xgboost  # noqa: F401  (registers the flavour so mlflow.xgboost.load_model works)
+import mlflow.sklearn  # noqa: F401  (registers the sklearn flavour used to load the registered model)
 import structlog
 import yaml
 
@@ -147,9 +147,14 @@ def load_champion_model(
     # ── Load the XGBoost model from the registry ───────────────────────
     # Use `models:/<name>/<stage>` so the URI is resolved via the
     # registry rather than hard-coding a version number.
+    # NOTE: the artifact is persisted via `mlflow.sklearn.log_model`
+    # (see src/training/train.py), so it must be rehydrated with
+    # `mlflow.sklearn.load_model`. XGBClassifier is a full sklearn-API
+    # object on the way back, so the rest of the serving code can keep
+    # calling `predict_proba`/`predict` on it.
     model_uri = f"models:/{name}/{stage}"
     try:
-        model = mlflow.xgboost.load_model(model_uri)
+        model = mlflow.sklearn.load_model(model_uri)
     except Exception as exc:  # noqa: BLE001
         raise RuntimeError(
             f"Failed to load model {model_uri!r}: {exc}. "

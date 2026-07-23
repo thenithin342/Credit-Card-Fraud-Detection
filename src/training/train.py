@@ -79,6 +79,24 @@ LOCAL_MLFLOW_URI: str = (PROJECT_ROOT / "mlruns").as_uri()
 REPORT_DIR = PROJECT_ROOT / "reports" / "training"
 FEATURE_COLUMNS_PATH = PROJECT_ROOT / "models" / "feature_columns.json"
 
+# Trust list for the skops audit that backs `mlflow.sklearn.log_model`.
+# XGBClassifier / LGBMClassifier pickle references non-sklearn classes
+# (xgboost.core.Booster, etc.) which skops refuses by default. Listing
+# them here is the documented escape hatch — see MLflow docs for
+# `mlflow.sklearn.log_model(..., skops_trusted_types=...)`.
+_SKOPS_TRUSTED_TYPES: list[str] = [
+    "xgboost.sklearn.XGBClassifier",
+    "xgboost.core.Booster",
+    "xgboost.sklearn.XGBModel",
+    "xgboost.sklearn.XGBRegressor",
+    "lightgbm.sklearn.LGBMClassifier",
+    "lightgbm.sklearn.LGBMRegressor",
+    "lightgbm.basic.Booster",
+    # LightGBM pickles contain a `collections.OrderedDict` (Python stdlib,
+    # safe by definition) that the skops audit refuses by default.
+    "collections.OrderedDict",
+]
+
 # Columns the model must NEVER see as input features.  These are
 # dropped from the X matrix at training time.
 _NON_FEATURE_COLS: tuple[str, ...] = ("TransactionID", "TransactionDT", TARGET_COL)
@@ -452,15 +470,20 @@ def log_run(
         mlflow.log_artifact(str(metrics_path), artifact_path="reports")
 
         # ── Model ──
-        # Use the native MLflow flavour for each framework so we avoid
-        # the skops "untrusted types" error that occurs when XGBoost /
-        # LightGBM objects are serialised through mlflow.sklearn.
-        if isinstance(model, _xgb.XGBClassifier):
-            mlflow.xgboost.log_model(model, artifact_path="model")
-        elif isinstance(model, _lgb.LGBMClassifier):
-            mlflow.lightgbm.log_model(model, artifact_path="model")
-        else:
-            mlflow.sklearn.log_model(model, artifact_path="model")
+        # Always persist via `mlflow.sklearn.log_model`.  XGBClassifier
+        # and LGBMClassifier are full sklearn-API objects, so this works
+        # uniformly for all three model types AND avoids the
+        # `mlflow.xgboost.log_model` TypeError on XGBoost>=2.0
+        # (`_estimator_type undefined` when early_stopping_rounds is set).
+        #
+        # The matching load side is `mlflow.sklearn.load_model` — see
+        # `src/serving/model_loader.py` and `src/training/evaluate.py`.
+        # Keep the write flavour and the read flavour in sync.
+        mlflow.sklearn.log_model(
+            model,
+            artifact_path="model",
+            skops_trusted_types=_SKOPS_TRUSTED_TYPES,
+        )
 
         # ── Tags ──
         mlflow.set_tags(

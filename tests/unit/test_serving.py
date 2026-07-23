@@ -152,7 +152,16 @@ def serving_env(tmp_path_factory) -> dict[str, Any]:
 
     # ── Log + register as a versioned model ─────────────────────────
     with mlflow.start_run(run_name="test_serving_xgb") as run:
-        mlflow.sklearn.log_model(model, artifact_path="model")
+        mlflow.sklearn.log_model(
+            model,
+            artifact_path="model",
+            skops_trusted_types=[
+                "xgboost.sklearn.XGBClassifier",
+                "xgboost.core.Booster",
+                "xgboost.sklearn.XGBModel",
+                "xgboost.sklearn.XGBRegressor",
+            ],
+        )
         run_id = run.info.run_id
 
     model_uri = f"runs:/{run_id}/model"
