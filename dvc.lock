@@ -31,8 +31,8 @@ stages:
       nfiles: 1
     - path: src/validation/ge_suite.py
       hash: md5
-      md5: b96e1a8df7c495f27d3fcdbb52cb5090
-      size: 9480
+      md5: efc2948b13e41f683d89643c89546de6
+      size: 13632
     params:
       params.yaml:
         data:
@@ -64,15 +64,10 @@ stages:
       md5: 3c5fe038794f5dd6da18000714480547.dir
       size: 1478810103
       nfiles: 6
-    - path: reports/validation
-      hash: md5
-      md5: 44ce1e0af02cf40e45977cb9e9dadd2a.dir
-      size: 2329
-      nfiles: 2
     - path: src/ingestion/split.py
       hash: md5
-      md5: 98a298622e56b1aa510db07541031af8
-      size: 5239
+      md5: 2ac0a6eec64f93a5c6e4de311d58cab6
+      size: 801
     params:
       params.yaml:
         data:
@@ -100,6 +95,17 @@ stages:
           - day_of_week
           card_id_col: card1
           target_col: isFraud
+          card_col: card1
+          window_minutes:
+          - 5
+          - 60
+          rolling_amount_window: 20
+          numeric_null_fill: -999
+          null_drop_threshold: 0.8
+          variance_threshold: 0.01
+          correlation_threshold: 0.95
+          encoder_path: models/encoders/feature_preprocessor.pkl
+          feature_columns_path: models/feature_columns.json
         split:
           test_size: 0.2
           val_size: 0.1
@@ -112,9 +118,164 @@ stages:
       size: 17371497
     - path: data/processed/train.parquet
       hash: md5
-      md5: 5d011f12a871aad338f3a7c8babf7dd1
-      size: 60370294
+      md5: a2d334f3b499f2a7107715179d786e48
+      size: 56608288
     - path: data/processed/val.parquet
       hash: md5
-      md5: 78918dd243f7a076895a7fe565b34dae
-      size: 9502395
+      md5: 1195cfe89d53e9d5e4ff8f20985d6e71
+      size: 8270967
+  feature_engineer:
+    cmd: .venv\Scripts\python -m src.features.offline_store
+    deps:
+    - path: data/processed/test.parquet
+      hash: md5
+      md5: 98aa0622ea0a26c1639ac8fbef7e979f
+      size: 17371497
+    - path: data/processed/train.parquet
+      hash: md5
+      md5: a2d334f3b499f2a7107715179d786e48
+      size: 56608288
+    - path: data/processed/val.parquet
+      hash: md5
+      md5: 1195cfe89d53e9d5e4ff8f20985d6e71
+      size: 8270967
+    - path: src/features/definitions.py
+      hash: md5
+      md5: cd376b116a9a1d3fca448964c4ba40db
+      size: 12136
+    - path: src/features/offline_store.py
+      hash: md5
+      md5: cc1810f8725a9793a428799d27ee2bf2
+      size: 11507
+    - path: src/features/preprocessing.py
+      hash: md5
+      md5: 330474ea13a225b36678a00cd8c4ef0c
+      size: 12725
+    - path: src/features/selection.py
+      hash: md5
+      md5: 32cd2a633f6090b676e4c2216c151d39
+      size: 11848
+    params:
+      params.yaml:
+        features:
+          velocity_windows_hours:
+          - 1
+          - 6
+          - 24
+          - 168
+          spend_agg_functions:
+          - mean
+          - std
+          - max
+          - count
+          cyclical_features:
+          - hour_of_day
+          - day_of_week
+          card_id_col: card1
+          target_col: isFraud
+          card_col: card1
+          window_minutes:
+          - 5
+          - 60
+          rolling_amount_window: 20
+          numeric_null_fill: -999
+          null_drop_threshold: 0.8
+          variance_threshold: 0.01
+          correlation_threshold: 0.95
+          encoder_path: models/encoders/feature_preprocessor.pkl
+          feature_columns_path: models/feature_columns.json
+    outs:
+    - path: data/features/test_features.parquet
+      hash: md5
+      md5: 5fd0d0476f148b6001e214556abff2eb
+      size: 20599690
+    - path: data/features/train_features.parquet
+      hash: md5
+      md5: d7d8849fb13dd745951797a043680daa
+      size: 68505810
+    - path: data/features/val_features.parquet
+      hash: md5
+      md5: dce95f6375ebd001a3eda980b837b590
+      size: 10021425
+    - path: models/encoders/feature_preprocessor.pkl
+      hash: md5
+      md5: 9c45dfccd0acac25e741c2d5d73fd730
+      size: 370737
+    - path: models/feature_columns.json
+      hash: md5
+      md5: c3385f76b0d93d80d1c458e6f450cc85
+      size: 9396
+  train:
+    cmd: .venv\Scripts\python -m src.training.train
+    deps:
+    - path: data/features/train_features.parquet
+      hash: md5
+      md5: d7d8849fb13dd745951797a043680daa
+      size: 68505810
+    - path: data/features/val_features.parquet
+      hash: md5
+      md5: dce95f6375ebd001a3eda980b837b590
+      size: 10021425
+    - path: models/feature_columns.json
+      hash: md5
+      md5: c3385f76b0d93d80d1c458e6f450cc85
+      size: 9396
+    - path: src/training/train.py
+      hash: md5
+      md5: 6bfd5706096c9e2f67234d8c79d9ea1e
+      size: 22862
+    params:
+      params.yaml:
+        training:
+          models:
+          - xgboost
+          - lightgbm
+          - logistic_regression
+          primary_model: xgboost
+          imbalance_strategy: scale_pos_weight
+          early_stopping_rounds: 50
+          n_jobs: -1
+          random_seed: 42
+          mlflow_experiment: fraud-detection-phase2
+          xgb:
+            n_estimators: 500
+            max_depth: 6
+            learning_rate: 0.05
+            subsample: 0.8
+            colsample_bytree: 0.8
+            min_child_weight: 5
+            scale_pos_weight: 4.0
+            gamma: 1.0
+            reg_alpha: 1.0
+            reg_lambda: 1.0
+          lgbm:
+            n_estimators: 500
+            max_depth: 6
+            learning_rate: 0.05
+          logreg:
+            max_iter: 1000
+            C: 1.0
+  evaluate:
+    cmd: .venv\Scripts\python -m src.evaluation.evaluate
+    deps:
+    - path: data/features/test_features.parquet
+      hash: md5
+      md5: 5fd0d0476f148b6001e214556abff2eb
+      size: 20599690
+    - path: src/evaluation/evaluate.py
+      hash: md5
+      md5: 8405e79d31f37324656ecbbcaca6cca1
+      size: 718
+    params:
+      params.yaml:
+        evaluation:
+          primary_metric: average_precision
+          promotion_threshold: 0.7
+          operating_fpr: 0.01
+          fn_cost: 10.0
+          fp_cost: 1.0
+    outs:
+    - path: reports/evaluation/test_metrics.json
+      hash: md5
+      md5: d36e2703411ae435dfcccd92aec76099
+      size: 420
