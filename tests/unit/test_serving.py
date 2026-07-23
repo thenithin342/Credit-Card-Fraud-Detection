@@ -152,15 +152,12 @@ def serving_env(tmp_path_factory) -> dict[str, Any]:
 
     # ── Log + register as a versioned model ─────────────────────────
     with mlflow.start_run(run_name="test_serving_xgb") as run:
+        from tests.unit._skops_compat import skops_log_kwargs  # noqa: PLC0415
+
         mlflow.sklearn.log_model(
             model,
             artifact_path="model",
-            skops_trusted_types=[
-                "xgboost.sklearn.XGBClassifier",
-                "xgboost.core.Booster",
-                "xgboost.sklearn.XGBModel",
-                "xgboost.sklearn.XGBRegressor",
-            ],
+            **skops_log_kwargs(),
         )
         run_id = run.info.run_id
 

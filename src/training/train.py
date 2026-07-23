@@ -35,6 +35,7 @@ Usage
 
 from __future__ import annotations
 
+import inspect
 import json
 import sys
 from pathlib import Path
@@ -91,6 +92,26 @@ _SKOPS_TRUSTED_TYPES: list[str] = [
     # safe by definition) that the skops audit refuses by default.
     "collections.OrderedDict",
 ]
+
+
+def _sklearn_log_kwargs() -> dict[str, Any]:
+    """Return skops-trust kwargs only if the installed mlflow supports them.
+
+    `skops_trusted_types=` is a relatively recent addition to
+    `mlflow.sklearn.log_model`.  Older mlflow releases (e.g. the one
+    pinned in CI's requirements.txt) raise
+    `TypeError: log_model() got an unexpected keyword argument 'skops_trusted_types'`.
+    We probe the signature once and return an empty dict when the
+    parameter is missing, so the call site is a clean `**_sklearn_log_kwargs()`.
+    """
+    try:
+        params = inspect.signature(mlflow.sklearn.log_model).parameters
+    except (TypeError, ValueError):  # built-in / C-implemented fallback
+        return {}
+    if "skops_trusted_types" in params:
+        return {"skops_trusted_types": _SKOPS_TRUSTED_TYPES}
+    return {}
+
 
 # Columns the model must NEVER see as input features.  These are
 # dropped from the X matrix at training time.
@@ -477,7 +498,7 @@ def log_run(
         mlflow.sklearn.log_model(
             model,
             artifact_path="model",
-            skops_trusted_types=_SKOPS_TRUSTED_TYPES,
+            **_sklearn_log_kwargs(),
         )
 
         # ── Tags ──

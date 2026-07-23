@@ -99,6 +99,7 @@ def test_xgboost_smoke_runs_and_has_run_id(tiny_feature_df: pd.DataFrame) -> Non
 
     from src.features.definitions import FEATURE_NAMES, TARGET_COL
     from src.training.train import compute_metrics, predict_proba
+    from tests.unit._skops_compat import skops_log_kwargs
 
     with tempfile.TemporaryDirectory() as tmp_uri:
         mlflow.set_tracking_uri(f"file:{tmp_uri}")
@@ -128,12 +129,7 @@ def test_xgboost_smoke_runs_and_has_run_id(tiny_feature_df: pd.DataFrame) -> Non
             mlflow.sklearn.log_model(
                 model,
                 artifact_path="model",
-                skops_trusted_types=[
-                    "xgboost.sklearn.XGBClassifier",
-                    "xgboost.core.Booster",
-                    "xgboost.sklearn.XGBModel",
-                    "xgboost.sklearn.XGBRegressor",
-                ],
+                **skops_log_kwargs(),
             )
 
         assert run_id, "MLflow run_id should not be empty"
