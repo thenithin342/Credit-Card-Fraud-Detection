@@ -17,10 +17,8 @@ Usage:
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
-from typing import Any
 
 import mlflow
 import mlflow.xgboost
@@ -170,7 +168,7 @@ def run_optuna_tuning() -> None:
     )
 
     # Log study to MLflow
-    with mlflow.start_run(run_name="optuna_tuning_xgboost") as run:
+    with mlflow.start_run(run_name="optuna_tuning_xgboost"):
         mlflow.log_params(best_params)
         mlflow.log_metric("best_val_pr_auc", best_value)
         mlflow.log_metric("n_trials", len(study.trials))

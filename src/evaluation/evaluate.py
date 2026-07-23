@@ -8,6 +8,7 @@ Delegates directly to `src.training.evaluate.main`.
 from __future__ import annotations
 
 import sys
+
 from src.training.evaluate import main
 
 if __name__ == "__main__":

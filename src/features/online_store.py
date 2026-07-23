@@ -41,9 +41,9 @@ from src.features.definitions import (
     _AMOUNT_ROLLING_WINDOW,
     _NUMERIC_NULL_FILL,
     _WINDOW_1H_SEC,
-    _WINDOW_24H_SEC,
     _WINDOW_5M_SEC,
     _WINDOW_7D_SEC,
+    _WINDOW_24H_SEC,
 )
 
 log = structlog.get_logger(__name__)

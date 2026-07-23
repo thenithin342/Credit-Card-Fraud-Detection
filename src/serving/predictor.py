@@ -214,7 +214,7 @@ def score_transaction(
 
     raw = _coerce_request_to_dataframe(req)
     temporal = _build_temporal_block(req, raw, online_store)
-    
+
     # Reindex to the preprocessor's fit-time column list so missing
     # raw columns are NaN (not silently dropped).  The preprocessor
     # will then fill numerics with the -999 sentinel and pass

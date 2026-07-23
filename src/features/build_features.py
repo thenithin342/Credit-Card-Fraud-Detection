@@ -8,6 +8,7 @@ Delegates directly to `src.features.offline_store.main`.
 from __future__ import annotations
 
 import sys
+
 from src.features.offline_store import main
 
 if __name__ == "__main__":
